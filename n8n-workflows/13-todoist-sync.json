@@ -56,9 +56,26 @@
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO tasks (user_id, title, description, status, priority, due_date, external_service, external_id)\nVALUES ('00000000-0000-0000-0000-000000000001',\n        '{{ $json.content }}',\n        {{ $json.description ? \"'\" + $json.description + \"'\" : \"NULL\" }},\n        {{ $json.is_completed ? \"'done'\" : \"'todo'\" }},\n        {{ $json.priority > 3 ? \"'high'\" : ($json.priority > 2 ? \"'medium'\" : \"'low'\") }},\n        {{ $json.due ? \"'\" + $json.due.date + \"'\" : \"NULL\" }},\n        'todoist',\n        '{{ $json.id }}')\nON CONFLICT (user_id, external_service, external_id)\nDO UPDATE SET\n  title = EXCLUDED.title,\n  description = EXCLUDED.description,\n  status = EXCLUDED.status,\n  priority = EXCLUDED.priority,\n  due_date = EXCLUDED.due_date,\n  updated_at = NOW()\nRETURNING id;",
-        "additionalFields": {}
+        "operation": "upsert",
+        "schema": "public",
+        "table": "tasks",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "user_id": "00000000-0000-0000-0000-000000000001",
+            "title": "={{ $json.content }}",
+            "description": "={{ $json.description || null }}",
+            "status": "={{ $json.is_completed ? 'done' : 'todo' }}",
+            "priority": "={{ $json.priority > 3 ? 'high' : ($json.priority > 2 ? 'medium' : 'low') }}",
+            "due_date": "={{ $json.due ? $json.due.date : null }}",
+            "external_service": "todoist",
+            "external_id": "={{ $json.id }}",
+            "updated_at": "={{ $now }}"
+          }
+        },
+        "options": {
+          "returnFields": "id"
+        }
       },
       "id": "postgres-upsert",
       "name": "PostgreSQL - Upsert Task",
@@ -132,9 +149,20 @@
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "UPDATE tasks\nSET external_service = 'todoist',\n    external_id = '{{ $json.id }}',\n    updated_at = NOW()\nWHERE id = '{{ $item(0).json.id }}';",
-        "additionalFields": {}
+        "operation": "update",
+        "schema": "public",
+        "table": "tasks",
+        "updateKey": "id",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $item(0).json.id }}",
+            "external_service": "todoist",
+            "external_id": "={{ $json.id }}",
+            "updated_at": "={{ $now }}"
+          }
+        },
+        "options": {}
       },
       "id": "postgres-update-external",
       "name": "PostgreSQL - Update External ID",
@@ -150,9 +178,18 @@
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO sync_log (service, last_synced_at, status)\nVALUES ('todoist', NOW(), 'success');",
-        "additionalFields": {}
+        "operation": "insert",
+        "schema": "public",
+        "table": "sync_log",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "service": "todoist",
+            "last_synced_at": "={{ $now }}",
+            "status": "success"
+          }
+        },
+        "options": {}
       },
       "id": "postgres-log",
       "name": "PostgreSQL - Log Sync",

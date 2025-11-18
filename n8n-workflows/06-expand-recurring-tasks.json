@@ -61,19 +61,61 @@
       "name": "Code - Calculate Next Date",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [850, 200]
+      "position": [850, 300]
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "-- Create new task instance\nINSERT INTO tasks (user_id, title, description, status, priority, due_date, category_id, parent_task_id)\nVALUES ('{{ $json.user_id }}', \n        '{{ $json.title }}', \n        '{{ $json.description }}', \n        'todo',\n        '{{ $json.priority }}',\n        '{{ $json.next_date }}',\n        '{{ $json.category_id }}',\n        '{{ $json.id }}');\n\n-- Update parent task\nUPDATE tasks\nSET next_recurrence_date = '{{ $json.next_date }}',\n    updated_at = NOW()\nWHERE id = '{{ $json.id }}';",
-        "additionalFields": {}
+        "operation": "insert",
+        "schema": "public",
+        "table": "tasks",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "user_id": "={{ $json.user_id }}",
+            "title": "={{ $json.title }}",
+            "description": "={{ $json.description || null }}",
+            "status": "todo",
+            "priority": "={{ $json.priority }}",
+            "due_date": "={{ $json.next_date }}",
+            "category_id": "={{ $json.category_id }}",
+            "parent_task_id": "={{ $json.id }}"
+          }
+        },
+        "options": {}
       },
       "id": "postgres-create",
       "name": "PostgreSQL - Create Task Instance",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
-      "position": [1050, 200],
+      "position": [1050, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": "public",
+        "table": "tasks",
+        "updateKey": "id",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $item(1).json.id }}",
+            "next_recurrence_date": "={{ $item(1).json.next_date }}",
+            "updated_at": "={{ $now }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "postgres-update",
+      "name": "PostgreSQL - Update Parent Recurrence",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1250, 300],
       "credentials": {
         "postgres": {
           "id": "postgres-ai-stack",
@@ -121,6 +163,17 @@
         [
           {
             "node": "PostgreSQL - Create Task Instance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL - Create Task Instance": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Update Parent Recurrence",
             "type": "main",
             "index": 0
           }

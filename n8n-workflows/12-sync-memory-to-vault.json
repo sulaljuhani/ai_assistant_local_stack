@@ -78,9 +78,19 @@
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "UPDATE memories\nSET metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('synced_to_vault', true, 'vault_file', '{{ $json.filename }}'),\n    updated_at = NOW()\nWHERE id = '{{ $json.memory_id }}';",
-        "additionalFields": {}
+        "operation": "update",
+        "schema": "public",
+        "table": "memories",
+        "updateKey": "id",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $json.memory_id }}",
+            "metadata": "={{ Object.assign({}, $json.metadata || {}, { synced_to_vault: true, vault_file: $json.filename }) }}",
+            "updated_at": "={{ $now }}"
+          }
+        },
+        "options": {}
       },
       "id": "postgres-update",
       "name": "PostgreSQL - Mark as Synced",

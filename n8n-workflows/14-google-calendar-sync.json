@@ -61,9 +61,27 @@
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO events (user_id, title, description, start_time, end_time, location, status, external_service, external_calendar_id)\nVALUES ('00000000-0000-0000-0000-000000000001',\n        '{{ $json.summary }}',\n        {{ $json.description ? \"'\" + $json.description + \"'\" : \"NULL\" }},\n        '{{ $json.start.dateTime || $json.start.date }}',\n        '{{ $json.end.dateTime || $json.end.date }}',\n        {{ $json.location ? \"'\" + $json.location + \"'\" : \"NULL\" }},\n        {{ $json.status === 'cancelled' ? \"'cancelled'\" : \"'scheduled'\" }},\n        'google_calendar',\n        '{{ $json.id }}')\nON CONFLICT (user_id, external_service, external_calendar_id)\nDO UPDATE SET\n  title = EXCLUDED.title,\n  description = EXCLUDED.description,\n  start_time = EXCLUDED.start_time,\n  end_time = EXCLUDED.end_time,\n  location = EXCLUDED.location,\n  status = EXCLUDED.status,\n  updated_at = NOW()\nRETURNING id;",
-        "additionalFields": {}
+        "operation": "upsert",
+        "schema": "public",
+        "table": "events",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "user_id": "00000000-0000-0000-0000-000000000001",
+            "title": "={{ $json.summary }}",
+            "description": "={{ $json.description || null }}",
+            "start_time": "={{ $json.start.dateTime || $json.start.date }}",
+            "end_time": "={{ $json.end.dateTime || $json.end.date }}",
+            "location": "={{ $json.location || null }}",
+            "status": "={{ $json.status === 'cancelled' ? 'cancelled' : 'scheduled' }}",
+            "external_service": "google_calendar",
+            "external_calendar_id": "={{ $json.id }}",
+            "updated_at": "={{ $now }}"
+          }
+        },
+        "options": {
+          "returnFields": "id"
+        }
       },
       "id": "postgres-upsert",
       "name": "PostgreSQL - Upsert Event",
@@ -139,9 +157,20 @@
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "UPDATE events\nSET external_service = 'google_calendar',\n    external_calendar_id = '{{ $json.id }}',\n    updated_at = NOW()\nWHERE id = '{{ $item(0).json.id }}';",
-        "additionalFields": {}
+        "operation": "update",
+        "schema": "public",
+        "table": "events",
+        "updateKey": "id",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $item(0).json.id }}",
+            "external_service": "google_calendar",
+            "external_calendar_id": "={{ $json.id }}",
+            "updated_at": "={{ $now }}"
+          }
+        },
+        "options": {}
       },
       "id": "postgres-update-external",
       "name": "PostgreSQL - Update External ID",
@@ -157,9 +186,18 @@
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO sync_log (service, last_synced_at, status)\nVALUES ('google_calendar', NOW(), 'success');",
-        "additionalFields": {}
+        "operation": "insert",
+        "schema": "public",
+        "table": "sync_log",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "service": "google_calendar",
+            "last_synced_at": "={{ $now }}",
+            "status": "success"
+          }
+        },
+        "options": {}
       },
       "id": "postgres-log",
       "name": "PostgreSQL - Log Sync",

@@ -55,9 +55,22 @@
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "UPDATE reminders\nSET status = 'fired', fired_at = NOW(), updated_at = NOW()\nWHERE id = '{{ $json.id }}'\nRETURNING id, title;",
-        "additionalFields": {}
+        "operation": "update",
+        "schema": "public",
+        "table": "reminders",
+        "updateKey": "id",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $json.id }}",
+            "status": "fired",
+            "fired_at": "={{ $now }}",
+            "updated_at": "={{ $now }}"
+          }
+        },
+        "options": {
+          "returnFields": "id,title"
+        }
       },
       "id": "postgres-update",
       "name": "PostgreSQL - Mark as Fired",
