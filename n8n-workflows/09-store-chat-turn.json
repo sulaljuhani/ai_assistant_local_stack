@@ -1,0 +1,254 @@
+{
+  "name": "Store Chat Turn (OpenMemory)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "store-chat-turn",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-store",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "store-chat-turn"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Get or create conversation\nINSERT INTO conversations (user_id, title, source, external_id)\nVALUES ('00000000-0000-0000-0000-000000000001',\n        '{{ $json.body.conversation_title || \"Untitled Conversation\" }}',\n        '{{ $json.body.source || \"chat\" }}',\n        '{{ $json.body.conversation_id }}')\nON CONFLICT (user_id, external_id)\nDO UPDATE SET\n  message_count = conversations.message_count + 1,\n  ended_at = NOW(),\n  updated_at = NOW()\nRETURNING id;",
+        "additionalFields": {}
+      },
+      "id": "postgres-conversation",
+      "name": "PostgreSQL - Get/Create Conversation",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [450, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Classify sectors based on content\nconst content = $input.item(0).json.body.content.toLowerCase();\nconst sectors = [];\n\n// Semantic: Facts, definitions, explanations\nif (/(is|are|means|definition|concept|explain)/i.test(content)) {\n  sectors.push('semantic');\n}\n\n// Episodic: Events, experiences\nif (/(i did|we did|you did|worked on|tried|fixed|yesterday|today)/i.test(content)) {\n  sectors.push('episodic');\n}\n\n// Procedural: How-tos, steps\nif (/(how to|step|first|then|next|install|configure|setup)/i.test(content)) {\n  sectors.push('procedural');\n}\n\n// Emotional: Preferences, feelings\nif (/(prefer|like|hate|love|frustrat|enjoy|feel)/i.test(content)) {\n  sectors.push('emotional');\n}\n\n// Reflective: Insights, patterns\nif (/(realize|understand|pattern|insight|learn|notice)/i.test(content)) {\n  sectors.push('reflective');\n}\n\n// Default to semantic if nothing matched\nif (sectors.length === 0) {\n  sectors.push('semantic');\n}\n\nreturn {\n  ...($input.item(0).json),\n  conversation_id: $json.id,\n  sectors: sectors\n};"
+      },
+      "id": "code-classify",
+      "name": "Code - Classify Sectors",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO memories (user_id, content, memory_type, source, conversation_id, event_timestamp, salience_score)\nVALUES ('00000000-0000-0000-0000-000000000001',\n        '{{ $json.body.content }}',\n        'explicit',\n        '{{ $json.body.source || \"chat\" }}',\n        '{{ $json.conversation_id }}',\n        NOW(),\n        {{ $json.body.salience_score || 0.5 }})\nRETURNING id;",
+        "additionalFields": {}
+      },
+      "id": "postgres-memory",
+      "name": "PostgreSQL - Create Memory",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [850, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=http://ollama-ai-stack:11434/api/embeddings",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "nomic-embed-text"
+            },
+            {
+              "name": "prompt",
+              "value": "={{ $item(2).json.body.content }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ollama-embed",
+      "name": "Ollama - Generate Embedding",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Store vectors for each sector\nconst memory_id = $input.item(3).json.id;\nconst embedding = $json.embedding;\nconst sectors = $input.item(2).json.sectors;\nconst content = $input.item(2).json.body.content;\n\nconst results = [];\n\nfor (const sector of sectors) {\n  const point_id = `${memory_id}_${sector}`;\n  \n  results.push({\n    memory_id: memory_id,\n    sector: sector,\n    point_id: point_id,\n    embedding: embedding,\n    content: content.substring(0, 500)\n  });\n}\n\nreturn results;"
+      },
+      "id": "code-prepare-vectors",
+      "name": "Code - Prepare Vectors",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO memory_sectors (memory_id, sector, qdrant_point_id, confidence, embedding_dimensions)\nVALUES ('{{ $json.memory_id }}', '{{ $json.sector }}', '{{ $json.point_id }}', 0.8, 768)\nON CONFLICT (memory_id, sector) DO NOTHING;",
+        "additionalFields": {}
+      },
+      "id": "postgres-sectors",
+      "name": "PostgreSQL - Insert Sectors",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1450, 200],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=http://qdrant-ai-stack:6333/collections/memories/points",
+        "method": "PUT",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "points",
+              "value": "={{ [{\"id\": $json.point_id, \"vector\": $json.embedding, \"payload\": {\"user_id\": \"00000000-0000-0000-0000-000000000001\", \"memory_id\": $json.memory_id, \"sector\": $json.sector, \"content\": $json.content, \"salience_score\": 0.5}}] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "qdrant-upsert",
+      "name": "Qdrant - Upsert Vectors",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1450, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"memory_id\": $item(3).json.id, \"sectors\": $item(2).json.sectors } }}"
+      },
+      "id": "respond-success",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1650, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Get/Create Conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL - Get/Create Conversation": {
+      "main": [
+        [
+          {
+            "node": "Code - Classify Sectors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Classify Sectors": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Create Memory",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL - Create Memory": {
+      "main": [
+        [
+          {
+            "node": "Ollama - Generate Embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama - Generate Embedding": {
+      "main": [
+        [
+          {
+            "node": "Code - Prepare Vectors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Prepare Vectors": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Insert Sectors",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Qdrant - Upsert Vectors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL - Insert Sectors": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qdrant - Upsert Vectors": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": "ai-stack"
+  },
+  "tags": []
+}

@@ -1,0 +1,222 @@
+{
+  "name": "Watch Documents - General Files",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "embed-document",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-embed",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "embed-document"
+    },
+    {
+      "parameters": {
+        "operation": "readFile",
+        "filePath": "={{ $json.body.file_path }}",
+        "options": {}
+      },
+      "id": "read-file",
+      "name": "Read File",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract text from file based on type\nconst filePath = $input.item(0).json.body.file_path;\nconst fileExt = filePath.split('.').pop().toLowerCase();\nconst data = $json.data;\n\nlet text = '';\n\nif (fileExt === 'txt' || fileExt === 'md') {\n  text = data.toString('utf-8');\n} else if (fileExt === 'pdf') {\n  // For PDF, assume data is already text (requires pdf-parse preprocessing)\n  text = data.toString('utf-8');\n} else if (fileExt === 'json') {\n  const jsonData = JSON.parse(data.toString('utf-8'));\n  text = JSON.stringify(jsonData, null, 2);\n} else {\n  text = data.toString('utf-8');\n}\n\n// Truncate if too long (max 8000 chars for embedding)\nif (text.length > 8000) {\n  text = text.substring(0, 8000);\n}\n\nreturn {\n  file_path: filePath,\n  file_ext: fileExt,\n  text: text,\n  file_hash: $input.item(0).json.body.file_hash\n};"
+      },
+      "id": "code-extract-text",
+      "name": "Code - Extract Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "url": "=http://ollama-ai-stack:11434/api/embeddings",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "nomic-embed-text"
+            },
+            {
+              "name": "prompt",
+              "value": "={{ $json.text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ollama-embed",
+      "name": "Ollama - Generate Embedding",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO documents (user_id, file_path, file_name, file_type, file_hash, content)\nVALUES ('00000000-0000-0000-0000-000000000001',\n        '{{ $item(2).json.file_path }}',\n        '{{ $item(2).json.file_path.split(\"/\").pop() }}',\n        '{{ $item(2).json.file_ext }}',\n        '{{ $item(2).json.file_hash }}',\n        '{{ $item(2).json.text }}')\nON CONFLICT (user_id, file_path)\nDO UPDATE SET\n  file_hash = EXCLUDED.file_hash,\n  content = EXCLUDED.content,\n  updated_at = NOW()\nRETURNING id;",
+        "additionalFields": {}
+      },
+      "id": "postgres-upsert",
+      "name": "PostgreSQL - Upsert Document",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1050, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=http://qdrant-ai-stack:6333/collections/knowledge_base/points",
+        "method": "PUT",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "points",
+              "value": "={{ [{\"id\": $json.id, \"vector\": $item(3).json.embedding, \"payload\": {\"user_id\": \"00000000-0000-0000-0000-000000000001\", \"document_id\": $json.id, \"file_path\": $item(2).json.file_path, \"file_type\": $item(2).json.file_ext, \"content\": $item(2).json.text.substring(0, 500)}}] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "qdrant-upsert",
+      "name": "Qdrant - Upsert Vector",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO file_sync (user_id, file_path, file_hash, last_synced_at, sync_status)\nVALUES ('00000000-0000-0000-0000-000000000001',\n        '{{ $item(2).json.file_path }}',\n        '{{ $item(2).json.file_hash }}',\n        NOW(),\n        'synced')\nON CONFLICT (user_id, file_path)\nDO UPDATE SET\n  file_hash = EXCLUDED.file_hash,\n  last_synced_at = NOW(),\n  sync_status = 'synced';",
+        "additionalFields": {}
+      },
+      "id": "postgres-sync",
+      "name": "PostgreSQL - Update Sync Status",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1450, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"file\": $item(2).json.file_path, \"document_id\": $item(4).json.id, \"status\": \"embedded\" } }}"
+      },
+      "id": "respond-success",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1650, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Read File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read File": {
+      "main": [
+        [
+          {
+            "node": "Code - Extract Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Extract Text": {
+      "main": [
+        [
+          {
+            "node": "Ollama - Generate Embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama - Generate Embedding": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Upsert Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL - Upsert Document": {
+      "main": [
+        [
+          {
+            "node": "Qdrant - Upsert Vector",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qdrant - Upsert Vector": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Update Sync Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL - Update Sync Status": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": "ai-stack"
+  },
+  "tags": []
+}

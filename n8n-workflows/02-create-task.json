@@ -1,0 +1,81 @@
+{
+  "name": "Create Task",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "create-task",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-create-task",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "create-task"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO tasks (user_id, title, description, status, priority, due_date, category_id, parent_task_id)\nVALUES ('00000000-0000-0000-0000-000000000001', \n        '{{ $json.body.title }}', \n        '{{ $json.body.description }}', \n        '{{ $json.body.status || \"todo\" }}', \n        '{{ $json.body.priority || \"medium\" }}',\n        {{ $json.body.due_date ? \"'\" + $json.body.due_date + \"'\" : \"NULL\" }},\n        (SELECT id FROM categories WHERE user_id = '00000000-0000-0000-0000-000000000001' AND name = '{{ $json.body.category || \"General\" }}'),\n        {{ $json.body.parent_task_id ? \"'\" + $json.body.parent_task_id + \"'\" : \"NULL\" }})\nRETURNING id, title, status, due_date;",
+        "additionalFields": {}
+      },
+      "id": "postgres-insert",
+      "name": "PostgreSQL - Insert Task",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [450, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"task\": $json } }}"
+      },
+      "id": "respond-success",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [650, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Insert Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL - Insert Task": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": "ai-stack"
+  },
+  "tags": []
+}

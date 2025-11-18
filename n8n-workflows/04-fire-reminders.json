@@ -1,0 +1,142 @@
+{
+  "name": "Fire Reminders",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, user_id, title, description, remind_at, priority, category_id\nFROM reminders\nWHERE status = 'pending'\n  AND remind_at <= NOW()\n  AND remind_at > NOW() - INTERVAL '5 minutes'\nORDER BY remind_at ASC;",
+        "additionalFields": {}
+      },
+      "id": "postgres-query",
+      "name": "PostgreSQL - Get Due Reminders",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [450, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.id }}",
+              "operation": "exists"
+            }
+          ]
+        }
+      },
+      "id": "if-has-reminders",
+      "name": "IF - Has Reminders",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE reminders\nSET status = 'fired', fired_at = NOW(), updated_at = NOW()\nWHERE id = '{{ $json.id }}'\nRETURNING id, title;",
+        "additionalFields": {}
+      },
+      "id": "postgres-update",
+      "name": "PostgreSQL - Mark as Fired",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [850, 200],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "🔔 **Reminder**\n\n**{{ $json.title }}**\n{{ $json.description }}\n\nPriority: {{ $json.priority }}\nScheduled: {{ $json.remind_at }}",
+        "additionalFields": {}
+      },
+      "id": "notification",
+      "name": "Send Notification",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1050, 200],
+      "notes": "Replace with actual notification node (email, webhook, etc.)"
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Get Due Reminders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL - Get Due Reminders": {
+      "main": [
+        [
+          {
+            "node": "IF - Has Reminders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Has Reminders": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Mark as Fired",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL - Mark as Fired": {
+      "main": [
+        [
+          {
+            "node": "Send Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": "ai-stack"
+  },
+  "tags": []
+}

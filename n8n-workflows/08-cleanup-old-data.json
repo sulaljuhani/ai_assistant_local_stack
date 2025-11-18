@@ -1,0 +1,143 @@
+{
+  "name": "Cleanup Old Data",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 2 * * 0"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule Trigger - Weekly 2 AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Archive old completed tasks (older than 90 days)\nUPDATE tasks\nSET is_archived = TRUE, updated_at = NOW()\nWHERE user_id = '00000000-0000-0000-0000-000000000001'\n  AND status = 'done'\n  AND is_archived = FALSE\n  AND updated_at < NOW() - INTERVAL '90 days';\n\n-- Archive old fired reminders (older than 30 days)\nUPDATE reminders\nSET is_archived = TRUE, updated_at = NOW()\nWHERE user_id = '00000000-0000-0000-0000-000000000001'\n  AND status = 'fired'\n  AND is_archived = FALSE\n  AND fired_at < NOW() - INTERVAL '30 days';\n\n-- Archive old cancelled events (older than 60 days)\nUPDATE events\nSET is_archived = TRUE, updated_at = NOW()\nWHERE user_id = '00000000-0000-0000-0000-000000000001'\n  AND status = 'cancelled'\n  AND is_archived = FALSE\n  AND updated_at < NOW() - INTERVAL '60 days';",
+        "additionalFields": {}
+      },
+      "id": "postgres-archive",
+      "name": "PostgreSQL - Archive Old Records",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [450, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Update memory salience scores (decay over time)\nUPDATE memories\nSET salience_score = GREATEST(0.1, salience_score * 0.95),\n    updated_at = NOW()\nWHERE user_id = '00000000-0000-0000-0000-000000000001'\n  AND last_accessed_at < NOW() - INTERVAL '30 days'\n  AND salience_score > 0.1;",
+        "additionalFields": {}
+      },
+      "id": "postgres-decay",
+      "name": "PostgreSQL - Decay Memory Salience",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [650, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Get statistics\nSELECT \n  (SELECT COUNT(*) FROM tasks WHERE is_archived = TRUE AND updated_at::date = CURRENT_DATE) as tasks_archived,\n  (SELECT COUNT(*) FROM reminders WHERE is_archived = TRUE AND updated_at::date = CURRENT_DATE) as reminders_archived,\n  (SELECT COUNT(*) FROM events WHERE is_archived = TRUE AND updated_at::date = CURRENT_DATE) as events_archived,\n  (SELECT COUNT(*) FROM memories WHERE updated_at::date = CURRENT_DATE AND salience_score < 0.3) as memories_decayed;",
+        "additionalFields": {}
+      },
+      "id": "postgres-stats",
+      "name": "PostgreSQL - Get Cleanup Stats",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [850, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "🧹 **Weekly Cleanup Complete**\n\nTasks archived: {{ $json.tasks_archived }}\nReminders archived: {{ $json.reminders_archived }}\nEvents archived: {{ $json.events_archived }}\nMemories decayed: {{ $json.memories_decayed }}",
+        "additionalFields": {}
+      },
+      "id": "notification",
+      "name": "Send Cleanup Report",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1050, 300],
+      "notes": "Replace with actual notification node"
+    }
+  ],
+  "connections": {
+    "Schedule Trigger - Weekly 2 AM": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Archive Old Records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL - Archive Old Records": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Decay Memory Salience",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL - Decay Memory Salience": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Get Cleanup Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL - Get Cleanup Stats": {
+      "main": [
+        [
+          {
+            "node": "Send Cleanup Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": "ai-stack"
+  },
+  "tags": []
+}

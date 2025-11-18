@@ -1,0 +1,81 @@
+{
+  "name": "Create Event",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "create-event",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-create-event",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "create-event"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO events (user_id, title, description, start_time, end_time, location, status, category_id, external_calendar_id)\nVALUES ('00000000-0000-0000-0000-000000000001', \n        '{{ $json.body.title }}', \n        '{{ $json.body.description }}', \n        '{{ $json.body.start_time }}', \n        '{{ $json.body.end_time }}',\n        {{ $json.body.location ? \"'\" + $json.body.location + \"'\" : \"NULL\" }},\n        '{{ $json.body.status || \"scheduled\" }}',\n        (SELECT id FROM categories WHERE user_id = '00000000-0000-0000-0000-000000000001' AND name = '{{ $json.body.category || \"General\" }}'),\n        {{ $json.body.external_calendar_id ? \"'\" + $json.body.external_calendar_id + \"'\" : \"NULL\" }})\nRETURNING id, title, start_time, end_time;",
+        "additionalFields": {}
+      },
+      "id": "postgres-insert",
+      "name": "PostgreSQL - Insert Event",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [450, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"event\": $json } }}"
+      },
+      "id": "respond-success",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [650, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Insert Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL - Insert Event": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": "ai-stack"
+  },
+  "tags": []
+}

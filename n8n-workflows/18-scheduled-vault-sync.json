@@ -1,0 +1,312 @@
+{
+  "name": "Scheduled Vault Sync (Fallback)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 */12 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule Trigger - Every 12 Hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "notes": "Hybrid sync fallback - catches files missed by realtime watcher"
+    },
+    {
+      "parameters": {
+        "command": "find /mnt/user/appdata/ai_stack/vault -name '*.md' -type f -mtime -1 | head -100"
+      },
+      "id": "bash-find-files",
+      "name": "Bash - Find Recent MD Files",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse file list and calculate hashes\nconst output = $json.stdout || '';\nconst files = output.split('\\n').filter(f => f.length > 0);\n\nconst crypto = require('crypto');\nconst fs = require('fs');\nconst results = [];\n\nfor (const filePath of files) {\n  try {\n    const content = fs.readFileSync(filePath, 'utf-8');\n    const hash = crypto.createHash('sha256').update(content).digest('hex');\n    const stats = fs.statSync(filePath);\n    \n    results.push({\n      file_path: filePath,\n      file_hash: hash,\n      file_size: stats.size,\n      modified_at: stats.mtime.toISOString()\n    });\n  } catch (e) {\n    // Skip files that can't be read\n  }\n}\n\nreturn results;"
+      },
+      "id": "code-process-files",
+      "name": "Code - Process File List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.file_path }}",
+              "operation": "exists"
+            }
+          ]
+        }
+      },
+      "id": "if-has-files",
+      "name": "IF - Has Files",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT file_hash FROM file_sync\nWHERE user_id = '00000000-0000-0000-0000-000000000001'\n  AND file_path = '{{ $json.file_path }}'\n  AND sync_status = 'synced';",
+        "additionalFields": {}
+      },
+      "id": "postgres-check-hash",
+      "name": "PostgreSQL - Check File Hash",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1050, 200],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.file_hash }}",
+              "operation": "notEqual",
+              "value2": "={{ $item(0).json.file_hash }}"
+            }
+          ]
+        }
+      },
+      "id": "if-hash-changed",
+      "name": "IF - Hash Changed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1250, 200]
+    },
+    {
+      "parameters": {
+        "operation": "readFile",
+        "filePath": "={{ $item(1).json.file_path }}",
+        "options": {}
+      },
+      "id": "read-file",
+      "name": "Read File",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [1450, 100]
+    },
+    {
+      "parameters": {
+        "url": "=http://ollama-ai-stack:11434/api/embeddings",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "nomic-embed-text"
+            },
+            {
+              "name": "prompt",
+              "value": "={{ $json.data.toString('utf-8') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ollama-embed",
+      "name": "Ollama - Generate Embedding",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1650, 100]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO notes (user_id, title, content, file_path, file_hash)\nVALUES ('00000000-0000-0000-0000-000000000001',\n        '{{ $item(1).json.file_path.split(\"/\").pop() }}',\n        '{{ $item(3).json.data.toString(\"utf-8\") }}',\n        '{{ $item(1).json.file_path }}',\n        '{{ $item(1).json.file_hash }}')\nON CONFLICT (user_id, file_path)\nDO UPDATE SET\n  content = EXCLUDED.content,\n  file_hash = EXCLUDED.file_hash,\n  updated_at = NOW()\nRETURNING id;",
+        "additionalFields": {}
+      },
+      "id": "postgres-upsert-note",
+      "name": "PostgreSQL - Upsert Note",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1850, 100],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=http://qdrant-ai-stack:6333/collections/knowledge_base/points",
+        "method": "PUT",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "points",
+              "value": "={{ [{\"id\": $json.id, \"vector\": $item(4).json.embedding, \"payload\": {\"user_id\": \"00000000-0000-0000-0000-000000000001\", \"file_path\": $item(1).json.file_path, \"content\": $item(3).json.data.toString(\"utf-8\").substring(0, 500), \"source\": \"scheduled_sync\"}}] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "qdrant-upsert",
+      "name": "Qdrant - Upsert Vector",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2050, 100]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO file_sync (user_id, file_path, file_hash, last_synced_at, sync_status)\nVALUES ('00000000-0000-0000-0000-000000000001',\n        '{{ $item(1).json.file_path }}',\n        '{{ $item(1).json.file_hash }}',\n        NOW(),\n        'synced')\nON CONFLICT (user_id, file_path)\nDO UPDATE SET\n  file_hash = EXCLUDED.file_hash,\n  last_synced_at = NOW(),\n  sync_status = 'synced';",
+        "additionalFields": {}
+      },
+      "id": "postgres-update-sync",
+      "name": "PostgreSQL - Update Sync Status",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [2250, 100],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger - Every 12 Hours": {
+      "main": [
+        [
+          {
+            "node": "Bash - Find Recent MD Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bash - Find Recent MD Files": {
+      "main": [
+        [
+          {
+            "node": "Code - Process File List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Process File List": {
+      "main": [
+        [
+          {
+            "node": "IF - Has Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Has Files": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Check File Hash",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL - Check File Hash": {
+      "main": [
+        [
+          {
+            "node": "IF - Hash Changed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Hash Changed": {
+      "main": [
+        [
+          {
+            "node": "Read File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read File": {
+      "main": [
+        [
+          {
+            "node": "Ollama - Generate Embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama - Generate Embedding": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Upsert Note",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL - Upsert Note": {
+      "main": [
+        [
+          {
+            "node": "Qdrant - Upsert Vector",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qdrant - Upsert Vector": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Update Sync Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": "ai-stack"
+  },
+  "tags": [],
+  "notes": "Hybrid sync strategy: Realtime (file watcher) + Scheduled (every 12h). Ensures no files are missed."
+}

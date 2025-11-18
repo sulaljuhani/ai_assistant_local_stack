@@ -1,0 +1,201 @@
+{
+  "name": "Watch Vault - Re-embed Files",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "reembed-file",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-reembed",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "reembed-file"
+    },
+    {
+      "parameters": {
+        "operation": "readFile",
+        "filePath": "={{ $json.body.file_path }}",
+        "options": {}
+      },
+      "id": "read-file",
+      "name": "Read File",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "url": "=http://ollama-ai-stack:11434/api/embeddings",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "nomic-embed-text"
+            },
+            {
+              "name": "prompt",
+              "value": "={{ $json.data.toString('utf-8') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ollama-embed",
+      "name": "Ollama - Generate Embedding",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO notes (user_id, title, content, file_path, file_hash)\nVALUES ('00000000-0000-0000-0000-000000000001',\n        '{{ $json.body.relative_path }}',\n        '{{ $runIndex === 1 ? $item(1).json.data.toString(\"utf-8\") : \"\" }}',\n        '{{ $json.body.file_path }}',\n        '{{ $json.body.file_hash }}')\nON CONFLICT (user_id, file_path)\nDO UPDATE SET\n  content = EXCLUDED.content,\n  file_hash = EXCLUDED.file_hash,\n  updated_at = NOW()\nRETURNING id;",
+        "additionalFields": {}
+      },
+      "id": "postgres-upsert",
+      "name": "PostgreSQL - Upsert Note",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [850, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=http://qdrant-ai-stack:6333/collections/knowledge_base/points",
+        "method": "PUT",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "points",
+              "value": "={{ [{\"id\": $json.id, \"vector\": $item(2).json.embedding, \"payload\": {\"user_id\": \"00000000-0000-0000-0000-000000000001\", \"file_path\": $item(0).json.body.file_path, \"content\": $item(1).json.data.toString(\"utf-8\").substring(0, 500)}}] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "qdrant-upsert",
+      "name": "Qdrant - Upsert Vector",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO file_sync (user_id, file_path, file_hash, last_synced_at, sync_status)\nVALUES ('00000000-0000-0000-0000-000000000001',\n        '{{ $item(0).json.body.file_path }}',\n        '{{ $item(0).json.body.file_hash }}',\n        NOW(),\n        'synced')\nON CONFLICT (user_id, file_path)\nDO UPDATE SET\n  file_hash = EXCLUDED.file_hash,\n  last_synced_at = NOW(),\n  sync_status = 'synced';",
+        "additionalFields": {}
+      },
+      "id": "postgres-sync",
+      "name": "PostgreSQL - Update Sync Status",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1250, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"file\": $item(0).json.body.file_path, \"status\": \"embedded\" } }}"
+      },
+      "id": "respond-success",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1450, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Read File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read File": {
+      "main": [
+        [
+          {
+            "node": "Ollama - Generate Embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama - Generate Embedding": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Upsert Note",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL - Upsert Note": {
+      "main": [
+        [
+          {
+            "node": "Qdrant - Upsert Vector",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qdrant - Upsert Vector": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Update Sync Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL - Update Sync Status": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": "ai-stack"
+  },
+  "tags": []
+}
