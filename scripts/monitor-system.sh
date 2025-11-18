@@ -79,6 +79,21 @@ while true; do
             echo -e "  Pending Reminders: ${YELLOW}${REMINDERS}${NC}"
             echo -e "  Upcoming Events: ${CYAN}${EVENTS}${NC}"
             echo -e "  Notes: ${GREEN}${NOTES}${NC}"
+
+            # Food Log Statistics
+            FOOD_STATS=$(docker exec postgres-ai-stack psql -U aistack_user -d aistack -tAc "
+                SELECT
+                    (SELECT COUNT(*) FROM food_log WHERE is_merged = FALSE) as total_food,
+                    (SELECT COUNT(*) FROM food_log WHERE preference = 'favorite' AND is_merged = FALSE) as favorites,
+                    (SELECT COUNT(*) FROM food_log WHERE location = 'outside' AND is_merged = FALSE) as restaurants
+            " 2>/dev/null)
+
+            if [ -n "$FOOD_STATS" ]; then
+                IFS='|' read -r FOOD_TOTAL FOOD_FAV FOOD_REST <<< "$FOOD_STATS"
+                if [ -n "$FOOD_TOTAL" ] && [ "$FOOD_TOTAL" != "0" ]; then
+                    echo -e "  ${CYAN}Food Log Entries: ${GREEN}${FOOD_TOTAL}${NC} (${YELLOW}⭐${FOOD_FAV}${NC} favorites, ${BLUE}🍽️${FOOD_REST}${NC} restaurants)"
+                fi
+            fi
         else
             echo -e "  ${RED}✗ Could not fetch statistics${NC}"
         fi
