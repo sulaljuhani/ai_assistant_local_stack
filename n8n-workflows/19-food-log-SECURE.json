@@ -1,0 +1,335 @@
+{
+  "name": "Food Log with Vectorization (SECURE)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "log-food",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "food-webhook",
+      "name": "Webhook - Log Food",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [250, 300],
+      "webhookId": "log-food"
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "food_log",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "user_id": "=00000000-0000-0000-0000-000000000001",
+            "food_name": "={{ $json.body.food_name }}",
+            "location": "={{ $json.body.location }}",
+            "preference": "={{ $json.body.preference }}",
+            "restaurant_name": "={{ $json.body.restaurant_name || null }}",
+            "description": "={{ $json.body.description || null }}",
+            "consumed_at": "={{ $json.body.consumed_at || $now }}",
+            "meal_type": "={{ $json.body.meal_type || null }}",
+            "ingredients": "={{ $json.body.ingredients || [] }}",
+            "tags": "={{ $json.body.tags || [] }}",
+            "calories": "={{ $json.body.calories || null }}",
+            "notes": "={{ $json.body.notes || null }}"
+          }
+        },
+        "options": {
+          "returnFields": "id,food_name,consumed_at"
+        }
+      },
+      "id": "insert-food",
+      "name": "Insert Food Entry (SECURE)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [450, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-aistack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "embedding-text",
+              "name": "embedding_text",
+              "value": "={{ 'Food: ' + $json.food_name + '. ' + ($('Webhook - Log Food').item.json.body.description || '') + '. Meal type: ' + ($('Webhook - Log Food').item.json.body.meal_type || 'unspecified') + '. ' + ($('Webhook - Log Food').item.json.body.notes || '') }}",
+              "type": "string"
+            },
+            {
+              "id": "food-id",
+              "name": "food_id",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "prepare-embedding",
+      "name": "Prepare Embedding Text",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama-ai-stack:11434/api/embeddings",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "nomic-embed-text"
+            },
+            {
+              "name": "prompt",
+              "value": "={{ $json.embedding_text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "generate-embedding",
+      "name": "Generate Embedding (Ollama)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=http://qdrant-ai-stack:6333/collections/food_memories/points",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "points",
+              "value": "=[{\n  \"id\": \"{{ $('Prepare Embedding Text').item.json.food_id }}\",\n  \"vector\": {{ $json.embedding }},\n  \"payload\": {\n    \"food_name\": \"{{ $('Insert Food Entry (SECURE)').item.json.food_name }}\",\n    \"description\": \"{{ $('Webhook - Log Food').item.json.body.description }}\",\n    \"consumed_at\": \"{{ $('Insert Food Entry (SECURE)').item.json.consumed_at }}\",\n    \"location\": \"{{ $('Webhook - Log Food').item.json.body.location }}\",\n    \"preference\": \"{{ $('Webhook - Log Food').item.json.body.preference }}\",\n    \"restaurant_name\": \"{{ $('Webhook - Log Food').item.json.body.restaurant_name }}\"\n  }\n}]"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "store-vector",
+      "name": "Store in Qdrant",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": "public",
+        "table": "food_log",
+        "updateKey": "id",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('Prepare Embedding Text').item.json.food_id }}",
+            "embedding_generated": true
+          }
+        },
+        "options": {}
+      },
+      "id": "mark-embedded",
+      "name": "Mark as Vectorized (SECURE)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1250, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-aistack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, food_id: $('Prepare Embedding Text').item.json.food_id, message: 'Food logged and vectorized successfully' } }}",
+        "options": {}
+      },
+      "id": "response",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1450, 300]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "recommend-food",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "recommend-webhook",
+      "name": "Webhook - Get Recommendations",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [250, 500],
+      "webhookId": "recommend-food"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama-ai-stack:11434/api/embeddings",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "nomic-embed-text"
+            },
+            {
+              "name": "prompt",
+              "value": "={{ $json.body.query || 'What should I eat?' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "query-embedding",
+      "name": "Generate Query Embedding",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [450, 500]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://qdrant-ai-stack:6333/collections/food_memories/points/search",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "vector",
+              "value": "={{ $json.embedding }}"
+            },
+            {
+              "name": "limit",
+              "value": "10"
+            },
+            {
+              "name": "with_payload",
+              "value": true
+            },
+            {
+              "name": "filter",
+              "value": "={ \"should\": [{ \"key\": \"preference\", \"match\": { \"value\": \"liked\" } }, { \"key\": \"preference\", \"match\": { \"value\": \"favorite\" } }] }"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "search-similar",
+      "name": "Search Similar Foods",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [650, 500]
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": "public",
+        "table": "food_log",
+        "returnAll": false,
+        "limit": 5,
+        "where": {
+          "conditions": [
+            {
+              "column": "id",
+              "operator": "IN",
+              "value": "={{ $json.result.map(r => r.id) }}"
+            }
+          ]
+        },
+        "sort": {
+          "values": [
+            {
+              "column": "consumed_at",
+              "direction": "ASC"
+            }
+          ]
+        },
+        "options": {
+          "outputFormat": "json"
+        }
+      },
+      "id": "get-details",
+      "name": "Get Food Details (SECURE)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [850, 500],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-aistack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { recommendations: $json, message: 'Foods you liked that you haven\\'t eaten recently' } }}",
+        "options": {}
+      },
+      "id": "recommend-response",
+      "name": "Respond with Recommendations",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1050, 500]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook - Log Food": {
+      "main": [[{ "node": "Insert Food Entry (SECURE)", "type": "main", "index": 0 }]]
+    },
+    "Insert Food Entry (SECURE)": {
+      "main": [[{ "node": "Prepare Embedding Text", "type": "main", "index": 0 }]]
+    },
+    "Prepare Embedding Text": {
+      "main": [[{ "node": "Generate Embedding (Ollama)", "type": "main", "index": 0 }]]
+    },
+    "Generate Embedding (Ollama)": {
+      "main": [[{ "node": "Store in Qdrant", "type": "main", "index": 0 }]]
+    },
+    "Store in Qdrant": {
+      "main": [[{ "node": "Mark as Vectorized (SECURE)", "type": "main", "index": 0 }]]
+    },
+    "Mark as Vectorized (SECURE)": {
+      "main": [[{ "node": "Respond", "type": "main", "index": 0 }]]
+    },
+    "Webhook - Get Recommendations": {
+      "main": [[{ "node": "Generate Query Embedding", "type": "main", "index": 0 }]]
+    },
+    "Generate Query Embedding": {
+      "main": [[{ "node": "Search Similar Foods", "type": "main", "index": 0 }]]
+    },
+    "Search Similar Foods": {
+      "main": [[{ "node": "Get Food Details (SECURE)", "type": "main", "index": 0 }]]
+    },
+    "Get Food Details (SECURE)": {
+      "main": [[{ "node": "Respond with Recommendations", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": "ai-stack-local"
+  },
+  "id": "19-secure",
+  "tags": ["security-fixed"]
+}
