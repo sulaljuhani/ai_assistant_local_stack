@@ -1,0 +1,169 @@
+{
+  "name": "Daily Summary",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule Trigger - 8 AM Daily",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  (SELECT COUNT(*) FROM tasks WHERE user_id = '00000000-0000-0000-0000-000000000001' AND status != 'done' AND due_date = CURRENT_DATE) as tasks_due_today,\n  (SELECT COUNT(*) FROM tasks WHERE user_id = '00000000-0000-0000-0000-000000000001' AND status = 'done' AND updated_at::date = CURRENT_DATE) as tasks_completed_today,\n  (SELECT COUNT(*) FROM reminders WHERE user_id = '00000000-0000-0000-0000-000000000001' AND remind_at::date = CURRENT_DATE AND status = 'pending') as reminders_today,\n  (SELECT COUNT(*) FROM events WHERE user_id = '00000000-0000-0000-0000-000000000001' AND start_time::date = CURRENT_DATE AND status != 'cancelled') as events_today;",
+        "additionalFields": {}
+      },
+      "id": "postgres-stats",
+      "name": "PostgreSQL - Get Daily Stats",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [450, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, title, due_date, priority, status\nFROM tasks\nWHERE user_id = '00000000-0000-0000-0000-000000000001'\n  AND status != 'done'\n  AND due_date = CURRENT_DATE\nORDER BY priority DESC, created_at ASC;",
+        "additionalFields": {}
+      },
+      "id": "postgres-tasks",
+      "name": "PostgreSQL - Get Today's Tasks",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [650, 200],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, title, start_time, end_time, location\nFROM events\nWHERE user_id = '00000000-0000-0000-0000-000000000001'\n  AND start_time::date = CURRENT_DATE\n  AND status != 'cancelled'\nORDER BY start_time ASC;",
+        "additionalFields": {}
+      },
+      "id": "postgres-events",
+      "name": "PostgreSQL - Get Today's Events",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [650, 400],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const stats = $input.first().json;\nconst tasks = $input.item(1)?.json || [];\nconst events = $input.item(2)?.json || [];\n\nconst summary = {\n  date: new Date().toISOString().split('T')[0],\n  stats: stats,\n  tasks_today: Array.isArray(tasks) ? tasks : [tasks],\n  events_today: Array.isArray(events) ? events : [events],\n  summary_text: `📅 Daily Summary for ${new Date().toDateString()}\\n\\n` +\n    `Tasks due today: ${stats.tasks_due_today}\\n` +\n    `Tasks completed: ${stats.tasks_completed_today}\\n` +\n    `Reminders: ${stats.reminders_today}\\n` +\n    `Events: ${stats.events_today}`\n};\n\nreturn summary;"
+      },
+      "id": "code-aggregate",
+      "name": "Code - Aggregate Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "content": "{{ $json.summary_text }}",
+        "additionalFields": {}
+      },
+      "id": "notification",
+      "name": "Send Daily Summary",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1050, 300],
+      "notes": "Replace with actual notification node (email, webhook, etc.)"
+    }
+  ],
+  "connections": {
+    "Schedule Trigger - 8 AM Daily": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Get Daily Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL - Get Daily Stats": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Get Today's Tasks",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "PostgreSQL - Get Today's Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL - Get Today's Tasks": {
+      "main": [
+        [
+          {
+            "node": "Code - Aggregate Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL - Get Today's Events": {
+      "main": [
+        [
+          {
+            "node": "Code - Aggregate Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Aggregate Summary": {
+      "main": [
+        [
+          {
+            "node": "Send Daily Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": "ai-stack"
+  },
+  "tags": []
+}

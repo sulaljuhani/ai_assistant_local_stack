@@ -1,0 +1,81 @@
+{
+  "name": "Create Reminder",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "create-reminder",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-create-reminder",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "create-reminder"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO reminders (user_id, title, description, remind_at, status, priority, category_id)\nVALUES ('00000000-0000-0000-0000-000000000001', \n        '{{ $json.body.title }}', \n        '{{ $json.body.description }}', \n        '{{ $json.body.remind_at }}', \n        'pending', \n        '{{ $json.body.priority || \"medium\" }}',\n        (SELECT id FROM categories WHERE user_id = '00000000-0000-0000-0000-000000000001' AND name = '{{ $json.body.category || \"General\" }}'))\nRETURNING id, title, remind_at;",
+        "additionalFields": {}
+      },
+      "id": "postgres-insert",
+      "name": "PostgreSQL - Insert Reminder",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [450, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"reminder\": $json } }}"
+      },
+      "id": "respond-success",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [650, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Insert Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL - Insert Reminder": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": "ai-stack"
+  },
+  "tags": []
+}

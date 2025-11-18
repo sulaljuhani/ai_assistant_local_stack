@@ -1,0 +1,263 @@
+{
+  "name": "Todoist Sync",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule Trigger - Every 15 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "resource": "task",
+        "operation": "getAll",
+        "returnAll": true,
+        "filters": {}
+      },
+      "id": "todoist-get-tasks",
+      "name": "Todoist - Get All Tasks",
+      "type": "n8n-nodes-base.todoist",
+      "typeVersion": 2,
+      "position": [450, 300],
+      "credentials": {
+        "todoistApi": {
+          "id": "todoist-credentials",
+          "name": "Todoist API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.id }}",
+              "operation": "exists"
+            }
+          ]
+        }
+      },
+      "id": "if-has-tasks",
+      "name": "IF - Has Tasks",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO tasks (user_id, title, description, status, priority, due_date, external_service, external_id)\nVALUES ('00000000-0000-0000-0000-000000000001',\n        '{{ $json.content }}',\n        {{ $json.description ? \"'\" + $json.description + \"'\" : \"NULL\" }},\n        {{ $json.is_completed ? \"'done'\" : \"'todo'\" }},\n        {{ $json.priority > 3 ? \"'high'\" : ($json.priority > 2 ? \"'medium'\" : \"'low'\") }},\n        {{ $json.due ? \"'\" + $json.due.date + \"'\" : \"NULL\" }},\n        'todoist',\n        '{{ $json.id }}')\nON CONFLICT (user_id, external_service, external_id)\nDO UPDATE SET\n  title = EXCLUDED.title,\n  description = EXCLUDED.description,\n  status = EXCLUDED.status,\n  priority = EXCLUDED.priority,\n  due_date = EXCLUDED.due_date,\n  updated_at = NOW()\nRETURNING id;",
+        "additionalFields": {}
+      },
+      "id": "postgres-upsert",
+      "name": "PostgreSQL - Upsert Task",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [850, 200],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Find local tasks that need to be synced to Todoist\nSELECT id, title, description, status, priority, due_date, external_id\nFROM tasks\nWHERE user_id = '00000000-0000-0000-0000-000000000001'\n  AND (external_service IS NULL OR external_service = 'todoist')\n  AND updated_at > (SELECT COALESCE(MAX(last_synced_at), '1970-01-01') FROM sync_log WHERE service = 'todoist')\n  AND external_id IS NULL;",
+        "additionalFields": {}
+      },
+      "id": "postgres-get-local",
+      "name": "PostgreSQL - Get Local Tasks to Sync",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [850, 400],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.id }}",
+              "operation": "exists"
+            }
+          ]
+        }
+      },
+      "id": "if-has-local-tasks",
+      "name": "IF - Has Local Tasks",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1050, 400]
+    },
+    {
+      "parameters": {
+        "resource": "task",
+        "operation": "create",
+        "content": "={{ $json.title }}",
+        "additionalFields": {
+          "description": "={{ $json.description }}",
+          "priority": "={{ $json.priority === 'high' ? 4 : ($json.priority === 'medium' ? 3 : 2) }}",
+          "dueDate": "={{ $json.due_date }}"
+        }
+      },
+      "id": "todoist-create",
+      "name": "Todoist - Create Task",
+      "type": "n8n-nodes-base.todoist",
+      "typeVersion": 2,
+      "position": [1250, 400],
+      "credentials": {
+        "todoistApi": {
+          "id": "todoist-credentials",
+          "name": "Todoist API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE tasks\nSET external_service = 'todoist',\n    external_id = '{{ $json.id }}',\n    updated_at = NOW()\nWHERE id = '{{ $item(0).json.id }}';",
+        "additionalFields": {}
+      },
+      "id": "postgres-update-external",
+      "name": "PostgreSQL - Update External ID",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1450, 400],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO sync_log (service, last_synced_at, status)\nVALUES ('todoist', NOW(), 'success');",
+        "additionalFields": {}
+      },
+      "id": "postgres-log",
+      "name": "PostgreSQL - Log Sync",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1050, 200],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger - Every 15 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Todoist - Get All Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Todoist - Get All Tasks": {
+      "main": [
+        [
+          {
+            "node": "IF - Has Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Has Tasks": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Upsert Task",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "PostgreSQL - Get Local Tasks to Sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL - Upsert Task": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Log Sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL - Get Local Tasks to Sync": {
+      "main": [
+        [
+          {
+            "node": "IF - Has Local Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Has Local Tasks": {
+      "main": [
+        [
+          {
+            "node": "Todoist - Create Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Todoist - Create Task": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Update External ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": "ai-stack"
+  },
+  "tags": []
+}

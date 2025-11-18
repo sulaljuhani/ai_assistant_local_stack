@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>qdrant-ai-stack</Name>
+  <Repository>qdrant/qdrant:latest</Repository>
+  <Registry>https://hub.docker.com/r/qdrant/qdrant</Registry>
+  <Network>ai-stack-network</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/yourusername/ai_stack</Support>
+  <Project>https://qdrant.tech/</Project>
+  <Overview>Qdrant vector database for AI Stack - stores embeddings for semantic search across documents, notes, and memories. Uses nomic-embed-text (768 dimensions) for vector embeddings.</Overview>
+  <Category>Productivity: DatabaseServers: Status:Stable</Category>
+  <WebUI>http://[IP]:[PORT:6333]/dashboard</WebUI>
+  <TemplateURL/>
+  <Icon>https://raw.githubusercontent.com/qdrant/qdrant/master/docs/logo.svg</Icon>
+  <ExtraParams>--network=ai-stack-network</ExtraParams>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires>Create Docker network first: docker network create ai-stack-network</Requires>
+  <Config Name="HTTP API Port" Target="6333" Default="6333" Mode="tcp" Description="Qdrant HTTP API and Web UI port" Type="Port" Display="always" Required="true" Mask="false">6333</Config>
+  <Config Name="gRPC Port" Target="6334" Default="6334" Mode="tcp" Description="Qdrant gRPC port (optional, for high-performance clients)" Type="Port" Display="advanced" Required="false" Mask="false">6334</Config>
+  <Config Name="Storage Directory" Target="/qdrant/storage" Default="/mnt/user/appdata/ai_stack/qdrant/storage" Mode="rw" Description="Qdrant vector storage directory" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/ai_stack/qdrant/storage</Config>
+  <Config Name="Snapshots Directory" Target="/qdrant/snapshots" Default="/mnt/user/appdata/ai_stack/qdrant/snapshots" Mode="rw" Description="Qdrant backup snapshots directory" Type="Path" Display="advanced" Required="false" Mask="false">/mnt/user/appdata/ai_stack/qdrant/snapshots</Config>
+</Container>

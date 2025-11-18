@@ -1,0 +1,270 @@
+{
+  "name": "Google Calendar Sync",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule Trigger - Every 15 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "resource": "event",
+        "operation": "getAll",
+        "calendar": "primary",
+        "returnAll": false,
+        "limit": 100,
+        "options": {
+          "timeMin": "={{ $now.minus({days: 7}).toISO() }}",
+          "timeMax": "={{ $now.plus({days: 30}).toISO() }}"
+        }
+      },
+      "id": "google-get-events",
+      "name": "Google Calendar - Get Events",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "google-calendar-credentials",
+          "name": "Google Calendar API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.id }}",
+              "operation": "exists"
+            }
+          ]
+        }
+      },
+      "id": "if-has-events",
+      "name": "IF - Has Events",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO events (user_id, title, description, start_time, end_time, location, status, external_service, external_calendar_id)\nVALUES ('00000000-0000-0000-0000-000000000001',\n        '{{ $json.summary }}',\n        {{ $json.description ? \"'\" + $json.description + \"'\" : \"NULL\" }},\n        '{{ $json.start.dateTime || $json.start.date }}',\n        '{{ $json.end.dateTime || $json.end.date }}',\n        {{ $json.location ? \"'\" + $json.location + \"'\" : \"NULL\" }},\n        {{ $json.status === 'cancelled' ? \"'cancelled'\" : \"'scheduled'\" }},\n        'google_calendar',\n        '{{ $json.id }}')\nON CONFLICT (user_id, external_service, external_calendar_id)\nDO UPDATE SET\n  title = EXCLUDED.title,\n  description = EXCLUDED.description,\n  start_time = EXCLUDED.start_time,\n  end_time = EXCLUDED.end_time,\n  location = EXCLUDED.location,\n  status = EXCLUDED.status,\n  updated_at = NOW()\nRETURNING id;",
+        "additionalFields": {}
+      },
+      "id": "postgres-upsert",
+      "name": "PostgreSQL - Upsert Event",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [850, 200],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Find local events that need to be synced to Google Calendar\nSELECT id, title, description, start_time, end_time, location, external_calendar_id\nFROM events\nWHERE user_id = '00000000-0000-0000-0000-000000000001'\n  AND (external_service IS NULL OR external_service = 'google_calendar')\n  AND updated_at > (SELECT COALESCE(MAX(last_synced_at), '1970-01-01') FROM sync_log WHERE service = 'google_calendar')\n  AND external_calendar_id IS NULL\n  AND status != 'cancelled';",
+        "additionalFields": {}
+      },
+      "id": "postgres-get-local",
+      "name": "PostgreSQL - Get Local Events to Sync",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [850, 400],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.id }}",
+              "operation": "exists"
+            }
+          ]
+        }
+      },
+      "id": "if-has-local-events",
+      "name": "IF - Has Local Events",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1050, 400]
+    },
+    {
+      "parameters": {
+        "resource": "event",
+        "operation": "create",
+        "calendar": "primary",
+        "start": "={{ $json.start_time }}",
+        "end": "={{ $json.end_time }}",
+        "additionalFields": {
+          "summary": "={{ $json.title }}",
+          "description": "={{ $json.description }}",
+          "location": "={{ $json.location }}"
+        }
+      },
+      "id": "google-create",
+      "name": "Google Calendar - Create Event",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1,
+      "position": [1250, 400],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "google-calendar-credentials",
+          "name": "Google Calendar API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE events\nSET external_service = 'google_calendar',\n    external_calendar_id = '{{ $json.id }}',\n    updated_at = NOW()\nWHERE id = '{{ $item(0).json.id }}';",
+        "additionalFields": {}
+      },
+      "id": "postgres-update-external",
+      "name": "PostgreSQL - Update External ID",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1450, 400],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO sync_log (service, last_synced_at, status)\nVALUES ('google_calendar', NOW(), 'success');",
+        "additionalFields": {}
+      },
+      "id": "postgres-log",
+      "name": "PostgreSQL - Log Sync",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1050, 200],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger - Every 15 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Google Calendar - Get Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Calendar - Get Events": {
+      "main": [
+        [
+          {
+            "node": "IF - Has Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Has Events": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Upsert Event",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "PostgreSQL - Get Local Events to Sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL - Upsert Event": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Log Sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL - Get Local Events to Sync": {
+      "main": [
+        [
+          {
+            "node": "IF - Has Local Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Has Local Events": {
+      "main": [
+        [
+          {
+            "node": "Google Calendar - Create Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Calendar - Create Event": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Update External ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": "ai-stack"
+  },
+  "tags": []
+}

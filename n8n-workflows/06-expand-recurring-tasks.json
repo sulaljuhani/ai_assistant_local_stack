@@ -1,0 +1,140 @@
+{
+  "name": "Expand Recurring Tasks",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule Trigger - Midnight",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, user_id, title, description, priority, category_id, recurrence_rule\nFROM tasks\nWHERE user_id = '00000000-0000-0000-0000-000000000001'\n  AND is_recurring = TRUE\n  AND status != 'cancelled'\n  AND (next_recurrence_date IS NULL OR next_recurrence_date <= CURRENT_DATE);",
+        "additionalFields": {}
+      },
+      "id": "postgres-query",
+      "name": "PostgreSQL - Get Recurring Tasks",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [450, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.id }}",
+              "operation": "exists"
+            }
+          ]
+        }
+      },
+      "id": "if-has-recurring",
+      "name": "IF - Has Recurring Tasks",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse recurrence rule and calculate next date\nconst rule = $json.recurrence_rule; // e.g., \"DAILY\", \"WEEKLY\", \"MONTHLY\"\nconst today = new Date();\nlet nextDate;\n\nswitch(rule) {\n  case 'DAILY':\n    nextDate = new Date(today);\n    nextDate.setDate(today.getDate() + 1);\n    break;\n  case 'WEEKLY':\n    nextDate = new Date(today);\n    nextDate.setDate(today.getDate() + 7);\n    break;\n  case 'MONTHLY':\n    nextDate = new Date(today);\n    nextDate.setMonth(today.getMonth() + 1);\n    break;\n  default:\n    nextDate = new Date(today);\n    nextDate.setDate(today.getDate() + 1);\n}\n\nreturn {\n  ...$json,\n  next_date: nextDate.toISOString().split('T')[0]\n};"
+      },
+      "id": "code-calculate",
+      "name": "Code - Calculate Next Date",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Create new task instance\nINSERT INTO tasks (user_id, title, description, status, priority, due_date, category_id, parent_task_id)\nVALUES ('{{ $json.user_id }}', \n        '{{ $json.title }}', \n        '{{ $json.description }}', \n        'todo',\n        '{{ $json.priority }}',\n        '{{ $json.next_date }}',\n        '{{ $json.category_id }}',\n        '{{ $json.id }}');\n\n-- Update parent task\nUPDATE tasks\nSET next_recurrence_date = '{{ $json.next_date }}',\n    updated_at = NOW()\nWHERE id = '{{ $json.id }}';",
+        "additionalFields": {}
+      },
+      "id": "postgres-create",
+      "name": "PostgreSQL - Create Task Instance",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1050, 200],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger - Midnight": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Get Recurring Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL - Get Recurring Tasks": {
+      "main": [
+        [
+          {
+            "node": "IF - Has Recurring Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Has Recurring Tasks": {
+      "main": [
+        [
+          {
+            "node": "Code - Calculate Next Date",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Calculate Next Date": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Create Task Instance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": "ai-stack"
+  },
+  "tags": []
+}

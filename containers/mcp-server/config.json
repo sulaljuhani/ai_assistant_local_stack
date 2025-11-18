@@ -1,0 +1,68 @@
+{
+  "server": {
+    "name": "ai-stack-mcp-server",
+    "version": "1.0.0",
+    "description": "MCP server for AI Stack with 17 tools (12 database + 5 memory)"
+  },
+  "database": {
+    "host": "${POSTGRES_HOST}",
+    "port": "${POSTGRES_PORT}",
+    "database": "${POSTGRES_DB}",
+    "user": "${POSTGRES_USER}",
+    "password": "${POSTGRES_PASSWORD}",
+    "pool_min_size": 2,
+    "pool_max_size": 10
+  },
+  "qdrant": {
+    "host": "${QDRANT_HOST}",
+    "port": "${QDRANT_PORT}",
+    "collections": {
+      "knowledge_base": {
+        "description": "Documents, notes, tasks, reminders, events",
+        "vector_size": 768,
+        "distance": "Cosine"
+      },
+      "memories": {
+        "description": "OpenMemory multi-sector storage",
+        "vector_size": 768,
+        "distance": "Cosine"
+      }
+    }
+  },
+  "ollama": {
+    "host": "${OLLAMA_HOST}",
+    "port": "${OLLAMA_PORT}",
+    "models": {
+      "embedding": "nomic-embed-text",
+      "chat": "llama3.2:3b"
+    },
+    "embedding_dimensions": 768
+  },
+  "user": {
+    "single_user_mode": true,
+    "default_user_id": "${DEFAULT_USER_ID}"
+  },
+  "tools": {
+    "database": [
+      "get_reminders_today",
+      "get_reminders_upcoming",
+      "search_reminders",
+      "get_events_today",
+      "get_events_upcoming",
+      "get_tasks_by_status",
+      "get_tasks_due_soon",
+      "search_notes",
+      "get_recent_notes",
+      "get_reminder_categories",
+      "get_day_summary",
+      "get_week_summary"
+    ],
+    "memory": [
+      "search_memories",
+      "get_recent_memories",
+      "get_conversation_context",
+      "get_memory_by_id",
+      "get_related_memories"
+    ]
+  }
+}

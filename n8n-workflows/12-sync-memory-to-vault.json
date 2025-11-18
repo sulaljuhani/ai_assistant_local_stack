@@ -1,0 +1,164 @@
+{
+  "name": "Sync Memory to Vault",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 */6 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule Trigger - Every 6 Hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT m.id, m.content, m.salience_score, m.created_at,\n       c.title as conversation_title,\n       array_agg(DISTINCT ms.sector) as sectors\nFROM memories m\nLEFT JOIN conversations c ON c.id = m.conversation_id\nLEFT JOIN memory_sectors ms ON ms.memory_id = m.id\nWHERE m.user_id = '00000000-0000-0000-0000-000000000001'\n  AND m.is_archived = FALSE\n  AND m.salience_score >= 0.7\n  AND m.created_at >= NOW() - INTERVAL '7 days'\nGROUP BY m.id, c.title\nORDER BY m.salience_score DESC\nLIMIT 50;",
+        "additionalFields": {}
+      },
+      "id": "postgres-query",
+      "name": "PostgreSQL - Get High-Salience Memories",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [450, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.id }}",
+              "operation": "exists"
+            }
+          ]
+        }
+      },
+      "id": "if-has-memories",
+      "name": "IF - Has Memories",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate markdown content\nconst memory = $json;\nconst date = new Date(memory.created_at);\nconst dateStr = date.toISOString().split('T')[0];\nconst filename = `memory-${memory.id.substring(0, 8)}.md`;\n\nconst markdown = `---\ntitle: Memory - ${memory.conversation_title || 'Untitled'}\ndate: ${dateStr}\nsalience: ${memory.salience_score}\nsectors: ${(memory.sectors || []).join(', ')}\ntype: memory\n---\n\n# ${memory.conversation_title || 'Memory'}\n\n${memory.content}\n\n---\n\n**Created**: ${dateStr}  \n**Salience Score**: ${memory.salience_score}  \n**Sectors**: ${(memory.sectors || []).join(', ')}\n`;\n\nreturn {\n  memory_id: memory.id,\n  filename: filename,\n  content: markdown,\n  file_path: `/mnt/user/appdata/ai_stack/vault/memories/${filename}`\n};"
+      },
+      "id": "code-generate-markdown",
+      "name": "Code - Generate Markdown",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $json.file_path }}",
+        "data": "={{ $json.content }}",
+        "options": {}
+      },
+      "id": "write-file",
+      "name": "Write File",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [1050, 200]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE memories\nSET metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('synced_to_vault', true, 'vault_file', '{{ $json.filename }}'),\n    updated_at = NOW()\nWHERE id = '{{ $json.memory_id }}';",
+        "additionalFields": {}
+      },
+      "id": "postgres-update",
+      "name": "PostgreSQL - Mark as Synced",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1250, 200],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger - Every 6 Hours": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Get High-Salience Memories",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL - Get High-Salience Memories": {
+      "main": [
+        [
+          {
+            "node": "IF - Has Memories",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Has Memories": {
+      "main": [
+        [
+          {
+            "node": "Code - Generate Markdown",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Generate Markdown": {
+      "main": [
+        [
+          {
+            "node": "Write File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write File": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Mark as Synced",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": "ai-stack"
+  },
+  "tags": []
+}

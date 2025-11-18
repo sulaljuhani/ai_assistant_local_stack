@@ -1,0 +1,244 @@
+{
+  "name": "Search and Summarize Memories",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "search-memories",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-search",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "search-memories"
+    },
+    {
+      "parameters": {
+        "url": "=http://ollama-ai-stack:11434/api/embeddings",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "nomic-embed-text"
+            },
+            {
+              "name": "prompt",
+              "value": "={{ $json.body.query }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ollama-embed",
+      "name": "Ollama - Generate Query Embedding",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "url": "=http://qdrant-ai-stack:6333/collections/memories/points/search",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "vector",
+              "value": "={{ $json.embedding }}"
+            },
+            {
+              "name": "limit",
+              "value": "={{ $item(0).json.body.limit || 10 }}"
+            },
+            {
+              "name": "score_threshold",
+              "value": "0.5"
+            },
+            {
+              "name": "with_payload",
+              "value": "true"
+            },
+            {
+              "name": "filter",
+              "value": "={{ { \"must\": [{ \"key\": \"user_id\", \"match\": { \"value\": \"00000000-0000-0000-0000-000000000001\" }}] } }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "qdrant-search",
+      "name": "Qdrant - Vector Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract search results\nconst results = $json.result || [];\n\nconst memories = results.map(item => ({\n  memory_id: item.payload.memory_id,\n  sector: item.payload.sector,\n  content: item.payload.content,\n  salience_score: item.payload.salience_score,\n  similarity_score: item.score\n}));\n\nreturn {\n  query: $input.item(0).json.body.query,\n  results_count: memories.length,\n  memories: memories\n};"
+      },
+      "id": "code-process",
+      "name": "Code - Process Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.body.summarize }}",
+              "operation": "equal",
+              "value2": "true"
+            }
+          ]
+        }
+      },
+      "id": "if-summarize",
+      "name": "IF - Should Summarize",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "url": "=http://ollama-ai-stack:11434/api/generate",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "llama3.2:3b"
+            },
+            {
+              "name": "prompt",
+              "value": "=Summarize the following memories related to the query: \"{{ $item(0).json.body.query }}\"\n\nMemories:\n{{ $item(3).json.memories.map((m, i) => `${i+1}. ${m.content} (similarity: ${m.similarity_score.toFixed(2)})`).join('\\n') }}\n\nProvide a concise summary:"
+            },
+            {
+              "name": "stream",
+              "value": "false"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ollama-summarize",
+      "name": "Ollama - Generate Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1250, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"query\": $item(3).json.query, \"results_count\": $item(3).json.results_count, \"memories\": $item(3).json.memories, \"summary\": $json.response } }}"
+      },
+      "id": "respond-with-summary",
+      "name": "Respond with Summary",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1450, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"query\": $json.query, \"results_count\": $json.results_count, \"memories\": $json.memories } }}"
+      },
+      "id": "respond-without-summary",
+      "name": "Respond without Summary",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1250, 400]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Ollama - Generate Query Embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama - Generate Query Embedding": {
+      "main": [
+        [
+          {
+            "node": "Qdrant - Vector Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qdrant - Vector Search": {
+      "main": [
+        [
+          {
+            "node": "Code - Process Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Process Results": {
+      "main": [
+        [
+          {
+            "node": "IF - Should Summarize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Should Summarize": {
+      "main": [
+        [
+          {
+            "node": "Ollama - Generate Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond without Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama - Generate Summary": {
+      "main": [
+        [
+          {
+            "node": "Respond with Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": "ai-stack"
+  },
+  "tags": []
+}
