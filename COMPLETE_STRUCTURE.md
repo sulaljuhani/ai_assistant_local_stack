@@ -254,21 +254,26 @@
 │       ├── 03-create-event.json           # POST /webhook/create-event
 │       ├── 04-fire-reminders.json         # Cron: */1 * * * *
 │       ├── 05-daily-summary.json          # Cron: 0 7 * * *
-│       ├── 06-todoist-sync.json           # Cron: */15 * * * *
-│       ├── 07-google-calendar-sync.json   # Cron: */15 * * * *
-│       ├── 08-expand-recurring-tasks.json # Cron: 0 0 * * *
-│       ├── 09-watch-vault.json            # File trigger: /vault
-│       ├── 10-watch-documents.json        # File trigger: /documents
-│       ├── 11-cleanup-old-data.json       # Cron: 0 3 * * *
+│       ├── 06-expand-recurring-tasks.json # Cron: 0 0 * * *
+│       ├── 07-watch-vault.json            # POST /webhook/reembed-file
+│       ├── 08-cleanup-old-data.json       # Cron: 0 3 * * *
 │       │
 │       ├── OpenMemory Workflows: ⭐ NEW
-│       ├── 12-import-chatgpt-export.json  # Import ChatGPT JSON
-│       ├── 13-import-claude-export.json   # Import Claude conversations
-│       ├── 14-import-gemini-export.json   # Import Gemini chats
-│       ├── 15-store-chat-turn.json        # Save each chat message
-│       ├── 16-sync-memory-to-vault.json   # Export memories to MD
-│       ├── 17-enrich-memories.json        # Add salience, links
-│       └── 18-search-and-summarize.json   # Memory-enhanced RAG
+│       ├── 09-store-chat-turn.json        # POST /webhook/store-chat-turn
+│       ├── 10-search-and-summarize.json   # POST /webhook/search-memories
+│       ├── 11-enrich-memories.json        # Cron: 0 2 * * * (nightly)
+│       ├── 12-sync-memory-to-vault.json   # Cron: */6 h (export to MD)
+│       │
+│       ├── External Integration Workflows:
+│       ├── 13-todoist-sync.json           # Cron: */15 * * * *
+│       ├── 14-google-calendar-sync.json   # Cron: */15 * * * *
+│       │
+│       ├── Document & Import Workflows:
+│       ├── 15-watch-documents.json        # POST /webhook/embed-document
+│       ├── 16-import-claude-export.json   # POST /webhook/import-claude
+│       ├── 17-import-gemini-export.json   # POST /webhook/import-gemini
+│       ├── 18-scheduled-vault-sync.json   # Cron: */12 h
+│       └── 19-import-chatgpt-export.json  # POST /webhook/import-chatgpt ⭐ NEW
 │
 ├── 📝 Configuration Files
 │   ├── mcp-config.json                    # MCP server config

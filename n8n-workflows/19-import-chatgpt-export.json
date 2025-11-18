@@ -1,0 +1,301 @@
+{
+  "name": "Import ChatGPT Export",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "import-chatgpt",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-import",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "import-chatgpt"
+    },
+    {
+      "parameters": {
+        "operation": "readFile",
+        "filePath": "={{ $json.body.file_path }}",
+        "options": {}
+      },
+      "id": "read-file",
+      "name": "Read File",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse ChatGPT export format (conversations.json)\nconst fileData = $json.data.toString('utf-8');\nconst conversations = JSON.parse(fileData);\n\n// Calculate file hash\nconst crypto = require('crypto');\nconst fileHash = crypto.createHash('sha256').update(fileData).digest('hex');\n\n// ChatGPT exports are arrays of conversations\nif (!Array.isArray(conversations)) {\n  throw new Error('Expected array of conversations');\n}\n\nreturn {\n  file_hash: fileHash,\n  file_path: $input.item(0).json.body.file_path,\n  conversations: conversations\n};"
+      },
+      "id": "code-parse",
+      "name": "Code - Parse Export",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT 1 FROM imported_chats\nWHERE user_id = '00000000-0000-0000-0000-000000000001'\n  AND file_hash = '{{ $json.file_hash }}';\n",
+        "additionalFields": {}
+      },
+      "id": "postgres-check-duplicate",
+      "name": "PostgreSQL - Check Duplicate",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [850, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json['?column?'] }}",
+              "operation": "notExists"
+            }
+          ]
+        }
+      },
+      "id": "if-not-duplicate",
+      "name": "IF - Not Duplicate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Split conversations into individual items\nconst conversations = $input.item(2).json.conversations;\nconst results = [];\n\nfor (const conv of conversations) {\n  // Extract messages from mapping structure\n  const messages = [];\n  const mapping = conv.mapping || {};\n  \n  for (const [key, value] of Object.entries(mapping)) {\n    if (!value.message) continue;\n    \n    const msg = value.message;\n    const author = msg.author || {};\n    const role = author.role || 'unknown';\n    \n    const contentData = msg.content || {};\n    if (contentData.content_type !== 'text') continue;\n    \n    const parts = contentData.parts || [];\n    if (!parts || !parts[0]) continue;\n    \n    const content = parts.filter(p => p).join('\\n');\n    const createTime = msg.create_time;\n    \n    messages.push({\n      role: role,\n      content: content,\n      create_time: createTime\n    });\n  }\n  \n  if (messages.length > 0) {\n    results.push({\n      conversation_id: conv.id || '',\n      title: conv.title || 'Untitled ChatGPT Conversation',\n      created_at: conv.create_time,\n      updated_at: conv.update_time,\n      messages: messages\n    });\n  }\n}\n\nreturn results;"
+      },
+      "id": "code-split-conversations",
+      "name": "Code - Split Conversations",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 200]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO conversations (user_id, title, source, external_id, started_at, ended_at, message_count)\nVALUES ('00000000-0000-0000-0000-000000000001',\n        '{{ $json.title.replace(/'/g, \"''\") }}',\n        'chatgpt',\n        '{{ $json.conversation_id.replace(/'/g, \"''\") }}',\n        to_timestamp({{ $json.created_at || 0 }}),\n        to_timestamp({{ $json.updated_at || 0 }}),\n        {{ $json.messages.length }})\nRETURNING id;",
+        "additionalFields": {}
+      },
+      "id": "postgres-create-conversation",
+      "name": "PostgreSQL - Create Conversation",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1450, 200],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Split messages from conversation\nconst conversationId = $json.id;\nconst messages = $input.item(0).json.messages;\nconst results = [];\n\nfor (const msg of messages) {\n  // Skip system messages and very short messages\n  if (msg.role === 'system' || !msg.content || msg.content.length < 10) {\n    continue;\n  }\n  \n  results.push({\n    conversation_id: conversationId,\n    content: msg.content,\n    role: msg.role,\n    created_at: msg.create_time\n  });\n}\n\nreturn results;"
+      },
+      "id": "code-split-messages",
+      "name": "Code - Split Messages",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1650, 200]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO memories (user_id, content, memory_type, source, conversation_id, event_timestamp)\nVALUES ('00000000-0000-0000-0000-000000000001',\n        '{{ $json.content.replace(/'/g, \"''\") }}',\n        'explicit',\n        'chatgpt',\n        '{{ $json.conversation_id }}',\n        to_timestamp({{ $json.created_at || 0 }}))\nRETURNING id;",
+        "additionalFields": {}
+      },
+      "id": "postgres-create-memory",
+      "name": "PostgreSQL - Create Memory",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1850, 200],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO imported_chats (user_id, source, file_path, file_name, file_hash, conversations_count)\nVALUES ('00000000-0000-0000-0000-000000000001',\n        'chatgpt',\n        '{{ $item(2).json.file_path.replace(/'/g, \"''\") }}',\n        '{{ $item(2).json.file_path.split(\"/\").pop().replace(/'/g, \"''\") }}',\n        '{{ $item(2).json.file_hash }}',\n        {{ $item(2).json.conversations.length }});",
+        "additionalFields": {}
+      },
+      "id": "postgres-log-import",
+      "name": "PostgreSQL - Log Import",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [2050, 200],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"status\": \"imported\", \"conversations\": $item(2).json.conversations.length } }}"
+      },
+      "id": "respond-success",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2250, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": false, \"status\": \"duplicate\", \"message\": \"File already imported\" } }}"
+      },
+      "id": "respond-duplicate",
+      "name": "Respond Duplicate",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1250, 400]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Read File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read File": {
+      "main": [
+        [
+          {
+            "node": "Code - Parse Export",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Parse Export": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Check Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL - Check Duplicate": {
+      "main": [
+        [
+          {
+            "node": "IF - Not Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Not Duplicate": {
+      "main": [
+        [
+          {
+            "node": "Code - Split Conversations",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Split Conversations": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Create Conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL - Create Conversation": {
+      "main": [
+        [
+          {
+            "node": "Code - Split Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Split Messages": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Create Memory",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL - Create Memory": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Log Import",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL - Log Import": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": "ai-stack"
+  },
+  "tags": [],
+  "notes": "Imports ChatGPT conversations.json export. Uses basic SQL escaping (replace ' with ''). For production, consider using parameterized queries via Code node + asyncpg."
+}
