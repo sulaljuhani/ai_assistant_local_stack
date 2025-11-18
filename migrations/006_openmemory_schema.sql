@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS memories (
     is_archived BOOLEAN DEFAULT FALSE,
     archived_at TIMESTAMP,
     archived_reason TEXT,
+    metadata JSONB,  -- General metadata for various purposes
 
     -- Timestamps
     created_at TIMESTAMP DEFAULT NOW(),
