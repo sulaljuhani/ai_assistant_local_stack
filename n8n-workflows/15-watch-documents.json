@@ -64,9 +64,24 @@
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO documents (user_id, file_path, file_name, file_type, file_hash, content)\nVALUES ('00000000-0000-0000-0000-000000000001',\n        '{{ $item(2).json.file_path }}',\n        '{{ $item(2).json.file_path.split(\"/\").pop() }}',\n        '{{ $item(2).json.file_ext }}',\n        '{{ $item(2).json.file_hash }}',\n        '{{ $item(2).json.text }}')\nON CONFLICT (user_id, file_path)\nDO UPDATE SET\n  file_hash = EXCLUDED.file_hash,\n  content = EXCLUDED.content,\n  updated_at = NOW()\nRETURNING id;",
-        "additionalFields": {}
+        "operation": "upsert",
+        "schema": "public",
+        "table": "documents",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "user_id": "00000000-0000-0000-0000-000000000001",
+            "file_path": "={{ $item(2).json.file_path }}",
+            "file_name": "={{ $item(2).json.file_path.split('/').pop() }}",
+            "file_type": "={{ $item(2).json.file_ext }}",
+            "file_hash": "={{ $item(2).json.file_hash }}",
+            "content": "={{ $item(2).json.text }}",
+            "updated_at": "={{ $now }}"
+          }
+        },
+        "options": {
+          "returnFields": "id"
+        }
       },
       "id": "postgres-upsert",
       "name": "PostgreSQL - Upsert Document",
@@ -103,9 +118,20 @@
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO file_sync (user_id, file_path, file_hash, last_synced_at, sync_status)\nVALUES ('00000000-0000-0000-0000-000000000001',\n        '{{ $item(2).json.file_path }}',\n        '{{ $item(2).json.file_hash }}',\n        NOW(),\n        'synced')\nON CONFLICT (user_id, file_path)\nDO UPDATE SET\n  file_hash = EXCLUDED.file_hash,\n  last_synced_at = NOW(),\n  sync_status = 'synced';",
-        "additionalFields": {}
+        "operation": "upsert",
+        "schema": "public",
+        "table": "file_sync",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "user_id": "00000000-0000-0000-0000-000000000001",
+            "file_path": "={{ $item(2).json.file_path }}",
+            "file_hash": "={{ $item(2).json.file_hash }}",
+            "last_synced_at": "={{ $now }}",
+            "sync_status": "synced"
+          }
+        },
+        "options": {}
       },
       "id": "postgres-sync",
       "name": "PostgreSQL - Update Sync Status",

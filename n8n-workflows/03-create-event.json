@@ -17,15 +17,66 @@
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO events (user_id, title, description, start_time, end_time, location, status, category_id, external_calendar_id)\nVALUES ('00000000-0000-0000-0000-000000000001', \n        '{{ $json.body.title }}', \n        '{{ $json.body.description }}', \n        '{{ $json.body.start_time }}', \n        '{{ $json.body.end_time }}',\n        {{ $json.body.location ? \"'\" + $json.body.location + \"'\" : \"NULL\" }},\n        '{{ $json.body.status || \"scheduled\" }}',\n        (SELECT id FROM categories WHERE user_id = '00000000-0000-0000-0000-000000000001' AND name = '{{ $json.body.category || \"General\" }}'),\n        {{ $json.body.external_calendar_id ? \"'\" + $json.body.external_calendar_id + \"'\" : \"NULL\" }})\nRETURNING id, title, start_time, end_time;",
-        "additionalFields": {}
+        "operation": "select",
+        "schema": "public",
+        "table": "categories",
+        "returnAll": false,
+        "limit": 1,
+        "where": {
+          "conditions": [
+            {
+              "column": "user_id",
+              "operator": "=",
+              "value": "00000000-0000-0000-0000-000000000001"
+            },
+            {
+              "column": "name",
+              "operator": "=",
+              "value": "={{ $json.body.category || 'General' }}"
+            }
+          ]
+        }
+      },
+      "id": "get-category-id",
+      "name": "Get Category ID",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [450, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "events",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "user_id": "00000000-0000-0000-0000-000000000001",
+            "title": "={{ $json.body.title }}",
+            "description": "={{ $json.body.description || null }}",
+            "start_time": "={{ $json.body.start_time }}",
+            "end_time": "={{ $json.body.end_time }}",
+            "location": "={{ $json.body.location || null }}",
+            "status": "={{ $json.body.status || 'scheduled' }}",
+            "category_id": "={{ $('Get Category ID').item.json.id }}",
+            "external_calendar_id": "={{ $json.body.external_calendar_id || null }}"
+          }
+        },
+        "options": {
+          "returnFields": "id,title,start_time,end_time"
+        }
       },
       "id": "postgres-insert",
       "name": "PostgreSQL - Insert Event",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
-      "position": [450, 300],
+      "position": [650, 300],
       "credentials": {
         "postgres": {
           "id": "postgres-ai-stack",
@@ -42,11 +93,22 @@
       "name": "Respond Success",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [650, 300]
+      "position": [850, 300]
     }
   ],
   "connections": {
     "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get Category ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Category ID": {
       "main": [
         [
           {

@@ -17,9 +17,24 @@
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "-- Get or create conversation\nINSERT INTO conversations (user_id, title, source, external_id)\nVALUES ('00000000-0000-0000-0000-000000000001',\n        '{{ $json.body.conversation_title || \"Untitled Conversation\" }}',\n        '{{ $json.body.source || \"chat\" }}',\n        '{{ $json.body.conversation_id }}')\nON CONFLICT (user_id, external_id)\nDO UPDATE SET\n  message_count = conversations.message_count + 1,\n  ended_at = NOW(),\n  updated_at = NOW()\nRETURNING id;",
-        "additionalFields": {}
+        "operation": "upsert",
+        "schema": "public",
+        "table": "conversations",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "user_id": "00000000-0000-0000-0000-000000000001",
+            "title": "={{ $json.body.conversation_title || 'Untitled Conversation' }}",
+            "source": "={{ $json.body.source || 'chat' }}",
+            "external_id": "={{ $json.body.conversation_id }}",
+            "message_count": "={{ $json.message_count ? $json.message_count + 1 : 1 }}",
+            "ended_at": "={{ $now }}",
+            "updated_at": "={{ $now }}"
+          }
+        },
+        "options": {
+          "returnFields": "id"
+        }
       },
       "id": "postgres-conversation",
       "name": "PostgreSQL - Get/Create Conversation",
@@ -45,9 +60,24 @@
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO memories (user_id, content, memory_type, source, conversation_id, event_timestamp, salience_score)\nVALUES ('00000000-0000-0000-0000-000000000001',\n        '{{ $json.body.content }}',\n        'explicit',\n        '{{ $json.body.source || \"chat\" }}',\n        '{{ $json.conversation_id }}',\n        NOW(),\n        {{ $json.body.salience_score || 0.5 }})\nRETURNING id;",
-        "additionalFields": {}
+        "operation": "insert",
+        "schema": "public",
+        "table": "memories",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "user_id": "00000000-0000-0000-0000-000000000001",
+            "content": "={{ $json.body.content }}",
+            "memory_type": "explicit",
+            "source": "={{ $json.body.source || 'chat' }}",
+            "conversation_id": "={{ $json.conversation_id }}",
+            "event_timestamp": "={{ $now }}",
+            "salience_score": "={{ $json.body.salience_score || 0.5 }}"
+          }
+        },
+        "options": {
+          "returnFields": "id"
+        }
       },
       "id": "postgres-memory",
       "name": "PostgreSQL - Create Memory",
@@ -98,9 +128,20 @@
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO memory_sectors (memory_id, sector, qdrant_point_id, confidence, embedding_dimensions)\nVALUES ('{{ $json.memory_id }}', '{{ $json.sector }}', '{{ $json.point_id }}', 0.8, 768)\nON CONFLICT (memory_id, sector) DO NOTHING;",
-        "additionalFields": {}
+        "operation": "insert",
+        "schema": "public",
+        "table": "memory_sectors",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "memory_id": "={{ $json.memory_id }}",
+            "sector": "={{ $json.sector }}",
+            "qdrant_point_id": "={{ $json.point_id }}",
+            "confidence": 0.8,
+            "embedding_dimensions": 768
+          }
+        },
+        "options": {}
       },
       "id": "postgres-sectors",
       "name": "PostgreSQL - Insert Sectors",

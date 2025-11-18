@@ -112,15 +112,52 @@
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO memory_enrichments (memory_id, enrichment_type, enrichment_data)\nVALUES ('{{ $json.memory_id }}', 'summary', '{{ JSON.stringify($json.enrichment) }}'::jsonb);\n\n-- Update memory with enrichment metadata\nUPDATE memories\nSET metadata = COALESCE(metadata, '{}'::jsonb) || '{\"enriched\": true}'::jsonb,\n    updated_at = NOW()\nWHERE id = '{{ $json.memory_id }}';",
-        "additionalFields": {}
+        "operation": "insert",
+        "schema": "public",
+        "table": "memory_enrichments",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "memory_id": "={{ $json.memory_id }}",
+            "enrichment_type": "summary",
+            "enrichment_data": "={{ $json.enrichment }}"
+          }
+        },
+        "options": {}
       },
-      "id": "postgres-store",
-      "name": "PostgreSQL - Store Enrichment",
+      "id": "postgres-insert-enrichment",
+      "name": "PostgreSQL - Insert Enrichment",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
       "position": [1450, 200],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": "public",
+        "table": "memories",
+        "updateKey": "id",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $item(3).json.memory_id }}",
+            "metadata": "={{ Object.assign({}, $json.metadata || {}, { enriched: true }) }}",
+            "updated_at": "={{ $now }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "postgres-update-metadata",
+      "name": "PostgreSQL - Update Memory Metadata",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1650, 200],
       "credentials": {
         "postgres": {
           "id": "postgres-ai-stack",
@@ -189,7 +226,18 @@
       "main": [
         [
           {
-            "node": "PostgreSQL - Store Enrichment",
+            "node": "PostgreSQL - Insert Enrichment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL - Insert Enrichment": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Update Memory Metadata",
             "type": "main",
             "index": 0
           }

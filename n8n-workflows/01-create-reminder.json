@@ -17,15 +17,64 @@
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO reminders (user_id, title, description, remind_at, status, priority, category_id)\nVALUES ('00000000-0000-0000-0000-000000000001', \n        '{{ $json.body.title }}', \n        '{{ $json.body.description }}', \n        '{{ $json.body.remind_at }}', \n        'pending', \n        '{{ $json.body.priority || \"medium\" }}',\n        (SELECT id FROM categories WHERE user_id = '00000000-0000-0000-0000-000000000001' AND name = '{{ $json.body.category || \"General\" }}'))\nRETURNING id, title, remind_at;",
-        "additionalFields": {}
+        "operation": "select",
+        "schema": "public",
+        "table": "categories",
+        "returnAll": false,
+        "limit": 1,
+        "where": {
+          "conditions": [
+            {
+              "column": "user_id",
+              "operator": "=",
+              "value": "00000000-0000-0000-0000-000000000001"
+            },
+            {
+              "column": "name",
+              "operator": "=",
+              "value": "={{ $json.body.category || 'General' }}"
+            }
+          ]
+        }
+      },
+      "id": "get-category-id",
+      "name": "Get Category ID",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [450, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "reminders",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "user_id": "00000000-0000-0000-0000-000000000001",
+            "title": "={{ $json.body.title }}",
+            "description": "={{ $json.body.description || null }}",
+            "remind_at": "={{ $json.body.remind_at }}",
+            "status": "pending",
+            "priority": "={{ $json.body.priority || 'medium' }}",
+            "category_id": "={{ $('Get Category ID').item.json.id }}"
+          }
+        },
+        "options": {
+          "returnFields": "id,title,remind_at"
+        }
       },
       "id": "postgres-insert",
       "name": "PostgreSQL - Insert Reminder",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
-      "position": [450, 300],
+      "position": [650, 300],
       "credentials": {
         "postgres": {
           "id": "postgres-ai-stack",
@@ -42,11 +91,22 @@
       "name": "Respond Success",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [650, 300]
+      "position": [850, 300]
     }
   ],
   "connections": {
     "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get Category ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Category ID": {
       "main": [
         [
           {

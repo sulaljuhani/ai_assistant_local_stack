@@ -17,15 +17,65 @@
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO tasks (user_id, title, description, status, priority, due_date, category_id, parent_task_id)\nVALUES ('00000000-0000-0000-0000-000000000001', \n        '{{ $json.body.title }}', \n        '{{ $json.body.description }}', \n        '{{ $json.body.status || \"todo\" }}', \n        '{{ $json.body.priority || \"medium\" }}',\n        {{ $json.body.due_date ? \"'\" + $json.body.due_date + \"'\" : \"NULL\" }},\n        (SELECT id FROM categories WHERE user_id = '00000000-0000-0000-0000-000000000001' AND name = '{{ $json.body.category || \"General\" }}'),\n        {{ $json.body.parent_task_id ? \"'\" + $json.body.parent_task_id + \"'\" : \"NULL\" }})\nRETURNING id, title, status, due_date;",
-        "additionalFields": {}
+        "operation": "select",
+        "schema": "public",
+        "table": "categories",
+        "returnAll": false,
+        "limit": 1,
+        "where": {
+          "conditions": [
+            {
+              "column": "user_id",
+              "operator": "=",
+              "value": "00000000-0000-0000-0000-000000000001"
+            },
+            {
+              "column": "name",
+              "operator": "=",
+              "value": "={{ $json.body.category || 'General' }}"
+            }
+          ]
+        }
+      },
+      "id": "get-category-id",
+      "name": "Get Category ID",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [450, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-ai-stack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "tasks",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "user_id": "00000000-0000-0000-0000-000000000001",
+            "title": "={{ $json.body.title }}",
+            "description": "={{ $json.body.description || null }}",
+            "status": "={{ $json.body.status || 'todo' }}",
+            "priority": "={{ $json.body.priority || 'medium' }}",
+            "due_date": "={{ $json.body.due_date || null }}",
+            "category_id": "={{ $('Get Category ID').item.json.id }}",
+            "parent_task_id": "={{ $json.body.parent_task_id || null }}"
+          }
+        },
+        "options": {
+          "returnFields": "id,title,status,due_date"
+        }
       },
       "id": "postgres-insert",
       "name": "PostgreSQL - Insert Task",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
-      "position": [450, 300],
+      "position": [650, 300],
       "credentials": {
         "postgres": {
           "id": "postgres-ai-stack",
@@ -42,11 +92,22 @@
       "name": "Respond Success",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [650, 300]
+      "position": [850, 300]
     }
   ],
   "connections": {
     "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get Category ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Category ID": {
       "main": [
         [
           {
