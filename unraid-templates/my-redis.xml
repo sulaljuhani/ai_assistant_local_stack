@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>redis-ai-stack</Name>
+  <Repository>redis:7-alpine</Repository>
+  <Registry>https://hub.docker.com/_/redis</Registry>
+  <Network>ai-stack-network</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/yourusername/ai_stack</Support>
+  <Project>https://redis.io/</Project>
+  <Overview>Redis cache and queue for AI Stack - provides fast caching for n8n workflows, session management, and temporary data storage. Uses AOF persistence for data durability.</Overview>
+  <Category>Productivity: DatabaseServers: Status:Stable</Category>
+  <WebUI/>
+  <TemplateURL/>
+  <Icon>https://raw.githubusercontent.com/docker-library/docs/master/redis/logo.png</Icon>
+  <ExtraParams>--network=ai-stack-network</ExtraParams>
+  <PostArgs>redis-server --appendonly yes --appendfilename "appendonly.aof" --dir /data</PostArgs>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires>Create Docker network first: docker network create ai-stack-network</Requires>
+  <Config Name="Redis Port" Target="6379" Default="6379" Mode="tcp" Description="Redis server port" Type="Port" Display="always" Required="true" Mask="false">6379</Config>
+  <Config Name="Data Directory" Target="/data" Default="/mnt/user/appdata/ai_stack/redis/data" Mode="rw" Description="Redis data persistence directory (AOF files)" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/ai_stack/redis/data</Config>
+  <Config Name="Max Memory" Target="--maxmemory" Default="" Mode="" Description="Maximum memory limit (e.g., 256mb, 1gb). Leave empty for no limit." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="Max Memory Policy" Target="--maxmemory-policy" Default="allkeys-lru" Mode="" Description="Eviction policy when max memory is reached (allkeys-lru recommended)" Type="Variable" Display="advanced" Required="false" Mask="false">allkeys-lru</Config>
+</Container>

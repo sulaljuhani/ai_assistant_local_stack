@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>mcp-server-ai-stack</Name>
+  <Repository>mcp-server-ai-stack:latest</Repository>
+  <Registry>Local Build</Registry>
+  <Network>ai-stack-network</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/yourusername/ai_stack</Support>
+  <Project>https://modelcontextprotocol.io/</Project>
+  <Overview>MCP (Model Context Protocol) Server for AI Stack - provides 17 tools for database and memory access. Includes 12 database tools (reminders, tasks, events, notes) and 5 memory tools (search, retrieve, context). Custom built image.</Overview>
+  <Category>Productivity: AI: Status:Beta</Category>
+  <WebUI>http://[IP]:[PORT:8081]/health</WebUI>
+  <TemplateURL/>
+  <Icon>https://raw.githubusercontent.com/anthropics/anthropic-cookbook/main/images/mcp-icon.png</Icon>
+  <ExtraParams>--network=ai-stack-network</ExtraParams>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires>Build image first: cd /mnt/user/appdata/ai_stack/containers/mcp-server &amp;&amp; docker build -t mcp-server-ai-stack:latest . Create Docker network: docker network create ai-stack-network</Requires>
+  <Config Name="MCP Server Port" Target="8081" Default="8081" Mode="tcp" Description="MCP server API port" Type="Port" Display="always" Required="true" Mask="false">8081</Config>
+  <Config Name="PostgreSQL Host" Target="POSTGRES_HOST" Default="postgres-ai-stack" Mode="" Description="PostgreSQL container hostname" Type="Variable" Display="always" Required="true" Mask="false">postgres-ai-stack</Config>
+  <Config Name="PostgreSQL Port" Target="POSTGRES_PORT" Default="5432" Mode="" Description="PostgreSQL port (internal container port, not host port)" Type="Variable" Display="always" Required="true" Mask="false">5432</Config>
+  <Config Name="PostgreSQL Database" Target="POSTGRES_DB" Default="aistack" Mode="" Description="Database name" Type="Variable" Display="always" Required="true" Mask="false">aistack</Config>
+  <Config Name="PostgreSQL User" Target="POSTGRES_USER" Default="aistack_user" Mode="" Description="Database username" Type="Variable" Display="always" Required="true" Mask="false">aistack_user</Config>
+  <Config Name="PostgreSQL Password" Target="POSTGRES_PASSWORD" Default="" Mode="" Description="Database password (must match PostgreSQL container)" Type="Variable" Display="always" Required="true" Mask="true">changeme_secure_password</Config>
+  <Config Name="Qdrant Host" Target="QDRANT_HOST" Default="qdrant-ai-stack" Mode="" Description="Qdrant container hostname" Type="Variable" Display="always" Required="true" Mask="false">qdrant-ai-stack</Config>
+  <Config Name="Qdrant Port" Target="QDRANT_PORT" Default="6333" Mode="" Description="Qdrant HTTP API port" Type="Variable" Display="always" Required="true" Mask="false">6333</Config>
+  <Config Name="Ollama Host" Target="OLLAMA_HOST" Default="ollama-ai-stack" Mode="" Description="Ollama container hostname" Type="Variable" Display="always" Required="true" Mask="false">ollama-ai-stack</Config>
+  <Config Name="Ollama Port" Target="OLLAMA_PORT" Default="11434" Mode="" Description="Ollama API port" Type="Variable" Display="always" Required="true" Mask="false">11434</Config>
+  <Config Name="Default User ID" Target="DEFAULT_USER_ID" Default="00000000-0000-0000-0000-000000000001" Mode="" Description="Single-user mode: default user UUID" Type="Variable" Display="advanced" Required="true" Mask="false">00000000-0000-0000-0000-000000000001</Config>
+  <Config Name="Config Directory" Target="/app/config" Default="/mnt/user/appdata/ai_stack/config" Mode="ro" Description="MCP server configuration files" Type="Path" Display="advanced" Required="false" Mask="false">/mnt/user/appdata/ai_stack/config</Config>
+</Container>
