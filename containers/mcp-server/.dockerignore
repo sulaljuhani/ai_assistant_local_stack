@@ -1,0 +1,39 @@
+# AI Stack - MCP Server .dockerignore
+
+# Documentation
+*.md
+README*
+
+# Scripts
+*.sh
+
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info
+dist
+build
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Test files
+test_*.py
+*_test.py
+tests/
+
+# Config (use environment variables instead)
+.env
+*.local
