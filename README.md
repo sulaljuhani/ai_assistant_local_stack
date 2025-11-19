@@ -5,6 +5,8 @@ A comprehensive, 100% local AI assistant stack with long-term memory powered by 
 > **Personal Use Project:** Designed for single-user deployment on unRAID servers. All components run locally with no external dependencies.
 >
 > ✅ **Production Ready** - Fully security audited, tested, and ready for deployment. See `docs/reports/PRODUCTION_READINESS_REPORT.md` for details.
+>
+> 🚀 **Major Update:** Migrated from n8n workflows to native Python FastAPI with APScheduler. All 21 workflows now implemented as REST endpoints and scheduled jobs.
 
 ## 🎯 What is This?
 
@@ -21,18 +23,18 @@ AI Stack combines multiple open-source tools into a unified system that:
 
 This repository contains a **complete, production-ready** AI Stack with:
 
-✅ **8 Core unRAID Container Templates** - Deploy with one click (+ optional Pydantic AI template for standalone install)
-✅ **Intelligent Agent Layer** - Pydantic AI conversational middleware with specialized agents
+✅ **7 Core unRAID Container Templates** - Deploy with one click
+✅ **LangGraph Multi-Agent System** - FastAPI service with specialized agents and 30+ tools
+✅ **Python Automation Layer** - 21 REST endpoints + 10 scheduled jobs (migrated from n8n)
 ✅ **OpenMemory Integration** - Official long-term memory system with MCP support
 ✅ **Database Schema** - Personal data management (tasks, reminders, events, notes, food log)
 ✅ **MCP Server** - 12 database tools for AI access
 ✅ **Qdrant Collections** - 768-dim vector storage for documents
 ✅ **Vault File Watcher** - Auto-embed Obsidian notes
-✅ **ChatGPT Importer** - Import conversation history to OpenMemory
+✅ **Chat History Importers** - Import from ChatGPT, Claude, Gemini
 ✅ **System Monitor** - Real-time health dashboard
 ✅ **Complete Documentation** - READMEs for every component
 ✅ **Production Ready** - Security audited, validated, and tested
-✅ **21 n8n Workflows** - Automated integrations with external services
 
 ## 🚀 Quick Start
 
@@ -49,11 +51,8 @@ Use templates in `unraid-templates/`:
 - `my-ollama.xml`
 - `my-openmemory.xml` ⭐ Official OpenMemory integration
 - `my-mcp-server.xml`
-- `my-n8n.xml`
+- `my-langgraph-agents.xml` ⭐ Multi-agent system with automation
 - `my-anythingllm.xml`
-
-**Optional - Install Separately:**
-- `my-pydantic-agent.xml` ⭐ Intelligent agent layer (installed separately, see template for build instructions)
 
 ### 3. Initialize Database
 ```bash
@@ -80,39 +79,49 @@ docker exec ollama-ai-stack ollama pull nomic-embed-text
 
 ### 7. Access Services
 - **AnythingLLM**: http://your-server:3001
-- **n8n**: http://your-server:5678
+- **LangGraph Agents API**: http://your-server:8080
+  - Swagger docs: http://your-server:8080/docs
+  - Scheduler status: http://your-server:8080/scheduler/jobs
 - **System Monitor**: `./scripts/monitor-system.sh`
 
 ## 🤖 Intelligent Agent System
 
-AI Stack features a **multi-layer agent architecture** for intelligent, conversational task management:
+AI Stack features a **LangGraph multi-agent architecture** with specialized domain experts and complete automation:
 
-### **Pydantic AI Agent Layer** (Current - Ready to Deploy)
+### **LangGraph Multi-Agent System** (✅ Complete - Production Ready)
 
-Intelligent conversational middleware that sits between AnythingLLM and your tools:
+Advanced multi-agent orchestration with specialized domain experts, REST API, and background automation:
 
-- ✅ **Evaluates Every Request** - Understands intent, asks clarifying questions
-- ✅ **Validates Before Execution** - Prevents errors, ensures data completeness
-- ✅ **Smart Suggestions** - Offers intelligent defaults and recommendations
-- ✅ **Conversation Memory** - Maintains context across multiple turns
-- ✅ **Tool Orchestration** - Routes to n8n workflows or direct database operations
+**Core Architecture:**
+- 🤖 **4 Specialized Agents** - Food, Task, Event, Memory experts
+- 🌐 **21 REST API Endpoints** - Complete automation layer
+- ⏰ **10 Scheduled Jobs** - Background processing with APScheduler
+- 🔧 **30+ Tools** - Database operations, vector search, hybrid recommendations
+- 🔒 **Type-Safe** - Pydantic validation on all inputs
+- 📊 **Production Ready** - Tested, secure, fully documented
 
-**Available Tools:**
-- `create_task` - Task creation with validation and smart defaults
-- `create_reminder` - Time-aware reminder creation
-- `search_tasks` - Flexible task searching with filters
-- `get_tasks_today` - Today's task overview
-- `get_events_today` - Calendar integration
-- `update_task` - Task modifications with context
-- `log_food` - Food logging with meal suggestions
+**REST API Endpoints:**
+- `/api/tasks/*` - Task management (create, list, update, delete)
+- `/api/reminders/*` - Reminder system (create, list, today)
+- `/api/events/*` - Calendar events (create, list, today, week)
+- `/api/vault/*` - Document embedding (reembed, sync, status)
+- `/api/documents/*` - File uploads and search
+- `/api/memory/*` - OpenMemory integration (store, search, stats)
+- `/api/import/*` - Chat history imports (ChatGPT, Claude, Gemini)
 
-**See:** `docs/PYDANTIC_AI_AGENT_GUIDE.md` for deployment and usage
+**Scheduled Jobs:**
+- Fire reminders (every 5 min)
+- Daily summary (8 AM)
+- Expand recurring tasks (midnight)
+- Cleanup old data (Sunday 2 AM)
+- Health check (every 5 min)
+- Vault sync (every 12 hours)
+- Enrich memories (3 AM)
+- Memory vault export (every 6 hours)
+- Todoist sync (every 15 min, conditional)
+- Google Calendar sync (every 15 min, conditional)
 
 ---
-
-### **LangGraph Multi-Agent System** (Planned - Future Enhancement)
-
-Advanced multi-agent orchestration with specialized domain experts:
 
 #### **Food Agent** 🍽️
 **Expertise:** Food logging, meal suggestions, dietary patterns
@@ -191,7 +200,7 @@ Task Agent: "I see you were discussing food. Groceries for salmon?"
 
 **Shared Knowledge:** All agents access the same databases and can collaborate when needed
 
-**See:** `LANGGRAPH_MULTI_AGENT_PLAN.md` for full implementation roadmap
+**See:** `docs/N8N_TO_PYTHON_MIGRATION_PLAN.md` for full migration details
 
 ---
 
@@ -199,46 +208,58 @@ Task Agent: "I see you were discussing food. Groceries for salmon?"
 
 | Component | Status | Description |
 |-----------|--------|-------------|
-| **unRAID Templates** | ✅ Complete | 9 XML templates for easy deployment |
-| **Pydantic AI Agent** | ✅ Complete | Intelligent conversational middleware, 650+ lines |
-| **LangGraph Agents** | 📋 Planned | Multi-agent system with specialists (see plan) |
+| **unRAID Templates** | ✅ Complete | 8 XML templates for easy deployment |
+| **LangGraph Agents** | ✅ Complete | Multi-agent system with 4 specialists, 30+ tools |
+| **REST API Layer** | ✅ Complete | 21 endpoints for complete automation |
+| **APScheduler Jobs** | ✅ Complete | 10 background jobs for maintenance & sync |
 | **OpenMemory** | ✅ Integrated | Official long-term memory system with MCP |
 | **Database Schema** | ✅ Complete | PostgreSQL for personal data (9 migrations) |
 | **MCP Server** | ✅ Complete | 12 database tools, async, 550+ lines |
 | **Qdrant Setup** | ✅ Complete | Document embeddings + verification |
-| **Vault Watcher** | ✅ Complete | Bash + PowerShell, real-time |
-| **ChatGPT Importer** | ✅ Complete | Import to OpenMemory |
+| **Vault Watcher** | ✅ Complete | Bash + PowerShell, calls Python API |
+| **Chat Importers** | ✅ Complete | ChatGPT, Claude, Gemini imports |
 | **System Monitor** | ✅ Complete | Real-time dashboard |
-| **Documentation** | ✅ Complete | 4500+ lines across all READMEs |
+| **Documentation** | ✅ Complete | 20,000+ lines across all docs |
 
 ## 📁 Repository Structure
 
 ```
 ai_assistant_local_stack/
-├── unraid-templates/          # 9 container templates
+├── unraid-templates/          # 8 container templates
 ├── migrations/                # 9 SQL migrations
 ├── containers/
-│   ├── mcp-server/           # MCP server source
-│   └── pydantic-agent/       # Pydantic AI agent service
-├── anythingllm-skills/        # Custom AnythingLLM skills
+│   ├── langgraph-agents/     # LangGraph multi-agent system (FastAPI + APScheduler)
+│   │   ├── routers/          # REST API endpoints (tasks, reminders, events, vault, memory, imports)
+│   │   ├── services/         # Background services (scheduler, reminders, external sync, memory)
+│   │   ├── tools/            # Agent tools (database, vector, hybrid, documents, memory)
+│   │   ├── middleware/       # Validation with Pydantic models
+│   │   └── graph/            # LangGraph workflow and agents
+│   └── mcp-server/           # MCP server source
+├── anythingllm-skills/        # Custom AnythingLLM skills (updated to call Python API)
 ├── scripts/
 │   ├── qdrant/               # Qdrant init & verification
-│   ├── vault-watcher/        # File watcher (Bash + PS)
+│   ├── vault-watcher/        # File watcher (Bash + PS, calls Python API)
 │   ├── python/               # Import/export tools
 │   ├── setup-vault.sh        # Obsidian vault setup
 │   └── monitor-system.sh     # System dashboard
+├── archive/
+│   └── n8n-workflows/        # Archived n8n workflows (migrated to Python)
 ├── config/                    # Configuration templates
 └── docs/                      # Additional documentation
+    └── N8N_TO_PYTHON_MIGRATION_PLAN.md  # Complete migration documentation
 ```
 
 ## 🔧 Key Technologies
 
-- **AI Agents**: Pydantic AI 0.0.13 (current), LangGraph (planned)
+- **AI Agents**: LangGraph + LangChain for multi-agent orchestration
+- **API Framework**: FastAPI with async support
+- **Scheduler**: APScheduler for background jobs
+- **Validation**: Pydantic for type-safe data models
 - **Embedding Model**: nomic-embed-text (768 dimensions)
 - **LLM**: Ollama llama3.2:3b (2GB, fast, local)
 - **Vector DB**: Qdrant (cosine similarity)
-- **Database**: PostgreSQL 16
-- **Workflow Engine**: n8n (for complex multi-step operations)
+- **Database**: PostgreSQL 16 with asyncpg
+- **State Management**: Redis for conversation persistence
 - **Protocol**: MCP (Model Context Protocol)
 
 ## 📖 Documentation
@@ -247,11 +268,11 @@ ai_assistant_local_stack/
 
 Each component has detailed documentation:
 
-### **AI Agents**
-- **Pydantic AI Agent**: `docs/PYDANTIC_AI_AGENT_GUIDE.md` - Deployment and usage guide
-- **Agent Service**: See `unraid-templates/my-pydantic-agent.xml` for standalone installation instructions
-- **LangGraph Plan**: `docs/LANGGRAPH_MULTI_AGENT_PLAN.md` - Multi-agent implementation roadmap
-- **Implementation**: `docs/PYDANTIC_AI_IMPLEMENTATION.md` - What was built and why
+### **AI Agents & Migration**
+- **LangGraph Agents**: `containers/langgraph-agents/README.md` - Multi-agent system overview
+- **n8n to Python Migration**: `docs/N8N_TO_PYTHON_MIGRATION_PLAN.md` - Complete migration documentation
+- **API Documentation**: Visit http://your-server:8080/docs for interactive Swagger docs
+- **Original Plan**: `docs/LANGGRAPH_MULTI_AGENT_PLAN.md` - Initial implementation roadmap
 
 ### **Core Components**
 - **unRAID Templates**: `unraid-templates/README.md`
@@ -269,12 +290,12 @@ Each component has detailed documentation:
 ## 🎯 Use Cases
 
 ### 1. Unified AI Memory
-Import conversations from:
-- ChatGPT (`scripts/python/import_chatgpt.py`)
-- Claude (coming soon)
-- Gemini (coming soon)
+Import conversations from multiple platforms via REST API:
+- ChatGPT: `POST /api/import/chatgpt` with export file
+- Claude: `POST /api/import/claude` with export file
+- Gemini: `POST /api/import/gemini` with export file
 
-All memories searchable across platforms!
+All memories automatically classified into sectors (semantic, episodic, procedural, emotional, reflective) and searchable across platforms!
 
 ### 2. Obsidian Integration
 - Edit notes in Obsidian
@@ -318,20 +339,23 @@ Built with:
 
 ## 📊 Statistics
 
-- **Total files**: 94
-- **Python code**: 25 files, 7,207 lines
+- **Total files**: 100+
+- **Python code**: 35+ files, 12,000+ lines (including routers, services, middleware)
 - **Bash scripts**: 10 files, 1,969 lines
 - **SQL migrations**: 10 files, 1,232 lines
-- **n8n workflows**: 21 workflows, 6,292 lines
-- **Documentation**: 25+ files, 18,773 lines
-- **AI Agent tools**: 7 (current), 25+ (planned multi-agent)
+- **REST API endpoints**: 21 endpoints across 7 routers
+- **Scheduled jobs**: 10 background jobs with APScheduler
+- **Documentation**: 30+ files, 20,000+ lines
+- **AI Agent tools**: 30+ tools (database, vector, hybrid, documents, memory)
+- **LangGraph agents**: 4 specialized agents (Food, Task, Event, Memory)
 - **MCP tools**: 12 database tools
 - **Database tables**: 18+
 - **Database indexes**: 50+
 - **Database functions**: 20+
 - **Vector dimensions**: 768
-- **Containers**: 9 (8 core + 1 agent layer)
+- **Containers**: 8 (7 core + 1 agent layer)
 - **Security issues resolved**: 7 (all critical issues fixed)
+- **n8n workflows migrated**: 21 → archived (now Python)
 
 ## 🔒 Privacy & Personal Use
 
@@ -350,14 +374,16 @@ MIT License
 ## 🙏 Credits
 
 Built with:
-- [Pydantic AI](https://ai.pydantic.dev/) - Agent framework with type safety
-- [LangGraph](https://langchain-ai.github.io/langgraph/) - Multi-agent orchestration (planned)
+- [LangGraph](https://langchain-ai.github.io/langgraph/) - Multi-agent orchestration
+- [LangChain](https://www.langchain.com/) - Agent framework and tools
+- [FastAPI](https://fastapi.tiangolo.com/) - Modern Python web framework
+- [APScheduler](https://apscheduler.readthedocs.io/) - Advanced Python Scheduler
+- [Pydantic](https://docs.pydantic.dev/) - Data validation with type hints
 - [OpenMemory](https://github.com/CaviraOSS/OpenMemory) - Long-term memory for AI agents
 - [Ollama](https://ollama.ai/) - Local LLM inference
 - [Qdrant](https://qdrant.tech/) - Vector database
 - [PostgreSQL](https://postgresql.org/) - Relational database
 - [AnythingLLM](https://anythingllm.com/) - RAG chat interface
-- [n8n](https://n8n.io/) - Workflow automation
 - [Obsidian](https://obsidian.md/) - Note-taking app
 
 ---
