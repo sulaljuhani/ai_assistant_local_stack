@@ -1,0 +1,302 @@
+{
+  "name": "Automated Backups",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 5 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule: Daily 5:00 AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "command": "=docker exec postgres-ai-stack pg_dump -U {{ $env.POSTGRES_USER }} {{ $env.POSTGRES_DB }} > {{ $env.BACKUP_PATH }}/postgres-$(date +\\%Y\\%m\\%d-\\%H\\%M\\%S).sql",
+        "options": {}
+      },
+      "id": "backup-postgres",
+      "name": "Backup PostgreSQL",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [450, 200]
+    },
+    {
+      "parameters": {
+        "command": "=docker exec qdrant-ai-stack tar czf {{ $env.BACKUP_PATH }}/qdrant-$(date +\\%Y\\%m\\%d-\\%H\\%M\\%S).tar.gz /qdrant/storage",
+        "options": {}
+      },
+      "id": "backup-qdrant",
+      "name": "Backup Qdrant",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "command": "=docker exec openmemory-ai-stack tar czf {{ $env.BACKUP_PATH }}/openmemory-$(date +\\%Y\\%m\\%d-\\%H\\%M\\%S).tar.gz /data",
+        "options": {}
+      },
+      "id": "backup-openmemory",
+      "name": "Backup OpenMemory",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [450, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Wait for all backups to complete (items come from parallel execution)\nconst backupResults = $items();\nconst timestamp = new Date().toISOString();\n\nreturn [{\n  json: {\n    timestamp: timestamp,\n    backups_completed: backupResults.length,\n    backup_path: $env.BACKUP_PATH\n  }\n}];"
+      },
+      "id": "wait-completion",
+      "name": "Wait for Completion",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "command": "=find {{ $env.BACKUP_PATH }} -name \"postgres-*.sql\" -mtime +30 -delete && find {{ $env.BACKUP_PATH }} -name \"qdrant-*.tar.gz\" -mtime +30 -delete && find {{ $env.BACKUP_PATH }} -name \"openmemory-*.tar.gz\" -mtime +30 -delete",
+        "options": {}
+      },
+      "id": "cleanup-old",
+      "name": "Cleanup Old Backups (>30 days)",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "command": "=ls -lh {{ $env.BACKUP_PATH }} | grep $(date +\\%Y\\%m\\%d) > {{ $env.BACKUP_PATH }}/manifest-$(date +\\%Y\\%m\\%d).txt && echo \"Backup completed: $(date)\" >> {{ $env.BACKUP_PATH }}/manifest-$(date +\\%Y\\%m\\%d).txt",
+        "options": {}
+      },
+      "id": "create-manifest",
+      "name": "Create Backup Manifest",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "backup_log",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "user_id": "={{ $env.DEFAULT_USER_ID }}",
+            "backup_type": "automated_daily",
+            "backup_date": "={{ $now }}",
+            "status": "completed",
+            "backup_path": "={{ $env.BACKUP_PATH }}",
+            "notes": "Automated daily backup completed successfully"
+          }
+        },
+        "options": {}
+      },
+      "id": "log-backup",
+      "name": "Log Backup to Database",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1250, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-aistack",
+          "name": "AI Stack PostgreSQL"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $env.TELEGRAM_BOT_TOKEN }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "check-telegram",
+      "name": "Check if Telegram Enabled",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1450, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "={{ $env.TELEGRAM_CHAT_ID }}"
+            },
+            {
+              "name": "text",
+              "value": "=✅ AI Stack Backup Complete\\n\\n📅 Date: {{ new Date().toLocaleString() }}\\n📂 Location: {{ $env.BACKUP_PATH }}\\n\\nBackups created:\\n• PostgreSQL\\n• Qdrant\\n• OpenMemory\\n\\nOld backups cleaned (>30 days)"
+            },
+            {
+              "name": "parse_mode",
+              "value": "Markdown"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "send-telegram",
+      "name": "Send Telegram Notification",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1650, 200]
+    },
+    {
+      "parameters": {},
+      "id": "no-telegram",
+      "name": "No Telegram - Skip",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1650, 400]
+    }
+  ],
+  "connections": {
+    "Schedule: Daily 5:00 AM": {
+      "main": [
+        [
+          {
+            "node": "Backup PostgreSQL",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Backup Qdrant",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Backup OpenMemory",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Backup PostgreSQL": {
+      "main": [
+        [
+          {
+            "node": "Wait for Completion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Backup Qdrant": {
+      "main": [
+        [
+          {
+            "node": "Wait for Completion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Backup OpenMemory": {
+      "main": [
+        [
+          {
+            "node": "Wait for Completion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Completion": {
+      "main": [
+        [
+          {
+            "node": "Cleanup Old Backups (>30 days)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cleanup Old Backups (>30 days)": {
+      "main": [
+        [
+          {
+            "node": "Create Backup Manifest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Backup Manifest": {
+      "main": [
+        [
+          {
+            "node": "Log Backup to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Backup to Database": {
+      "main": [
+        [
+          {
+            "node": "Check if Telegram Enabled",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check if Telegram Enabled": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Notification",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Telegram - Skip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": "ai-stack-local"
+  },
+  "id": "20",
+  "tags": []
+}

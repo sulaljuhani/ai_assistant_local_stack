@@ -15,6 +15,8 @@ Tools:
 """
 
 import asyncio
+import json
+import logging
 import os
 import sys
 from datetime import datetime, timedelta
@@ -25,6 +27,52 @@ import asyncpg
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
+
+# ============================================================================
+# LOGGING CONFIGURATION
+# ============================================================================
+
+class JSONFormatter(logging.Formatter):
+    """Format logs as JSON for structured logging."""
+    def format(self, record):
+        log_data = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+            "module": record.module,
+            "function": record.funcName,
+            "line": record.lineno,
+        }
+
+        # Add exception info if present
+        if record.exc_info:
+            log_data["exception"] = self.formatException(record.exc_info)
+
+        # Add custom fields
+        if hasattr(record, "tool_name"):
+            log_data["tool_name"] = record.tool_name
+        if hasattr(record, "duration_ms"):
+            log_data["duration_ms"] = record.duration_ms
+        if hasattr(record, "user_id"):
+            log_data["user_id"] = record.user_id
+
+        return json.dumps(log_data)
+
+# Setup logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(message)s',
+    handlers=[logging.StreamHandler(sys.stderr)]
+)
+
+logger = logging.getLogger("mcp_server")
+
+# Use JSON formatter for structured logs
+for handler in logger.handlers:
+    handler.setFormatter(JSONFormatter())
+
+logger.info("MCP Server logging initialized")
 
 # ============================================================================
 # CONFIGURATION
@@ -54,17 +102,51 @@ db_pool: Optional[asyncpg.Pool] = None
 # ============================================================================
 
 async def get_db_pool() -> asyncpg.Pool:
-    """Get or create database connection pool."""
+    """Get or create database connection pool with retry logic."""
     global db_pool
-    if db_pool is None:
-        db_pool = await asyncpg.create_pool(**DB_CONFIG, min_size=2, max_size=10)
+
+    if db_pool is not None:
+        return db_pool
+
+    # Retry logic for database connection
+    max_retries = 3
+    retry_delay = 2  # seconds
+
+    for attempt in range(max_retries):
+        try:
+            logger.info(f"Attempting to connect to database (attempt {attempt + 1}/{max_retries})")
+            db_pool = await asyncpg.create_pool(
+                **DB_CONFIG,
+                min_size=int(os.getenv("POSTGRES_MIN_POOL_SIZE", "2")),
+                max_size=int(os.getenv("POSTGRES_MAX_POOL_SIZE", "10")),
+                command_timeout=60
+            )
+            logger.info("Database connection pool created successfully")
+            return db_pool
+
+        except Exception as e:
+            logger.error(f"Database connection attempt {attempt + 1} failed: {str(e)}")
+
+            if attempt < max_retries - 1:
+                wait_time = retry_delay * (2 ** attempt)  # Exponential backoff
+                logger.info(f"Retrying in {wait_time} seconds...")
+                await asyncio.sleep(wait_time)
+            else:
+                logger.error("All database connection attempts failed")
+                raise ConnectionError(f"Failed to connect to database after {max_retries} attempts: {str(e)}")
+
     return db_pool
 
 async def cleanup():
     """Clean up connections."""
     global db_pool
     if db_pool:
-        await db_pool.close()
+        logger.info("Closing database connection pool")
+        try:
+            await db_pool.close()
+            logger.info("Database connection pool closed successfully")
+        except Exception as e:
+            logger.error(f"Error closing database pool: {str(e)}")
 
 # ============================================================================
 # HELPER FUNCTIONS
@@ -496,7 +578,13 @@ async def list_tools() -> list[Tool]:
 
 @app.call_tool()
 async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
-    """Execute a tool and return results."""
+    """Execute a tool and return results with comprehensive error handling."""
+    start_time = datetime.now()
+
+    # Log tool invocation
+    log_extra = {"tool_name": name, "user_id": DEFAULT_USER_ID}
+    logger.info(f"Tool invoked: {name}", extra=log_extra)
+
     try:
         # Map tool names to functions
         tool_map = {
@@ -515,32 +603,95 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
         }
 
         if name not in tool_map:
-            return [TextContent(type="text", text=f"Unknown tool: {name}")]
+            error_msg = f"Unknown tool: {name}. Available tools: {', '.join(tool_map.keys())}"
+            logger.warning(error_msg, extra=log_extra)
+            return [TextContent(type="text", text=error_msg)]
 
+        # Execute tool
         result = await tool_map[name]()
+
+        # Log success with duration
+        duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+        log_extra["duration_ms"] = duration_ms
+        logger.info(f"Tool {name} completed successfully in {duration_ms}ms", extra=log_extra)
+
         return [TextContent(type="text", text=result)]
 
+    except KeyError as e:
+        # Missing required argument
+        error_msg = f"Missing required argument for {name}: {str(e)}"
+        logger.error(error_msg, extra=log_extra, exc_info=True)
+        return [TextContent(type="text", text=f"❌ {error_msg}")]
+
+    except asyncpg.PostgresError as e:
+        # Database error
+        error_msg = f"Database error in {name}: {str(e)}"
+        logger.error(error_msg, extra=log_extra, exc_info=True)
+        return [TextContent(type="text", text=f"❌ Database error: Unable to retrieve data. The database may be temporarily unavailable. Please try again in a moment.")]
+
+    except ConnectionError as e:
+        # Connection error
+        error_msg = f"Connection error in {name}: {str(e)}"
+        logger.error(error_msg, extra=log_extra, exc_info=True)
+        return [TextContent(type="text", text=f"❌ Connection error: Cannot connect to database. Please check that PostgreSQL is running.")]
+
+    except ValueError as e:
+        # Invalid input
+        error_msg = f"Invalid input for {name}: {str(e)}"
+        logger.error(error_msg, extra=log_extra, exc_info=True)
+        return [TextContent(type="text", text=f"❌ Invalid input: {str(e)}")]
+
     except Exception as e:
-        error_msg = f"Error executing {name}: {str(e)}"
-        print(error_msg, file=sys.stderr)
-        return [TextContent(type="text", text=error_msg)]
+        # Unexpected error
+        error_msg = f"Unexpected error in {name}: {type(e).__name__}: {str(e)}"
+        logger.error(error_msg, extra=log_extra, exc_info=True)
+        return [TextContent(type="text", text=f"❌ An unexpected error occurred. The error has been logged. Please contact support if this persists.")]
 
 # ============================================================================
 # MAIN ENTRY POINT
 # ============================================================================
 
 async def main():
-    """Main entry point."""
-    print("Starting AI Stack MCP Server...", file=sys.stderr)
-    print(f"PostgreSQL: {DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}", file=sys.stderr)
-    print("Note: Memory tools now provided by OpenMemory container", file=sys.stderr)
-    print("Ready to accept connections.", file=sys.stderr)
+    """Main entry point with comprehensive logging."""
+    logger.info("="*60)
+    logger.info("Starting AI Stack MCP Server")
+    logger.info("="*60)
+    logger.info(f"PostgreSQL: {DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}")
+    logger.info(f"User ID: {DEFAULT_USER_ID}")
+    logger.info(f"Pool size: {os.getenv('POSTGRES_MIN_POOL_SIZE', '2')}-{os.getenv('POSTGRES_MAX_POOL_SIZE', '10')} connections")
+    logger.info("Note: Memory tools provided by OpenMemory container")
+    logger.info(f"Available tools: {len(TOOLS)}")
+    logger.info("="*60)
+    logger.info("Ready to accept connections")
 
     try:
+        # Test database connection on startup
+        logger.info("Testing database connection...")
+        pool = await get_db_pool()
+        async with pool.acquire() as conn:
+            version = await conn.fetchval("SELECT version()")
+            logger.info(f"Database connected: PostgreSQL {version.split()[1]}")
+
         async with stdio_server() as (read_stream, write_stream):
+            logger.info("MCP server started successfully")
             await app.run(read_stream, write_stream, app.create_initialization_options())
+
+    except KeyboardInterrupt:
+        logger.info("Received shutdown signal (KeyboardInterrupt)")
+    except Exception as e:
+        logger.error(f"Fatal error in main(): {str(e)}", exc_info=True)
+        raise
     finally:
+        logger.info("Shutting down MCP server...")
         await cleanup()
+        logger.info("MCP server shutdown complete")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("MCP server stopped by user")
+        sys.exit(0)
+    except Exception as e:
+        logger.error(f"Fatal error: {str(e)}", exc_info=True)
+        sys.exit(1)
