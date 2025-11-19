@@ -21,6 +21,8 @@ from graph.state import create_initial_state, MultiAgentState
 from utils.logging import setup_logging, get_logger
 from utils.db import close_db_pool
 from utils.redis_client import close_redis_client
+from services.scheduler import setup_scheduler, shutdown_scheduler
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 # Setup logging
 setup_logging()
@@ -33,6 +35,9 @@ limiter = Limiter(key_func=get_remote_address, default_limits=["100/hour"])
 # Global workflow instance
 workflow_app = None
 
+# Global scheduler instance
+scheduler = None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -42,8 +47,15 @@ async def lifespan(app: FastAPI):
     logger.info(f"LLM Provider: {settings.llm_provider}")
     logger.info(f"Model: {settings.ollama_model if settings.llm_provider == 'ollama' else settings.openai_model}")
 
-    global workflow_app
+    global workflow_app, scheduler
     workflow_app = create_workflow()
+
+    # Initialize scheduler
+    logger.info("Initializing APScheduler for background jobs")
+    scheduler = AsyncIOScheduler()
+    setup_scheduler(scheduler)
+    scheduler.start()
+    logger.info("Scheduler started successfully")
 
     logger.info("Application started successfully")
 
@@ -51,6 +63,7 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("Shutting down application")
+    await shutdown_scheduler()
     await close_db_pool()
     await close_redis_client()
     logger.info("Application shutdown complete")
@@ -299,6 +312,16 @@ async def get_config():
         "state_pruning_enabled": settings.state_pruning_enabled,
         "state_max_messages": settings.state_max_messages,
         "log_level": settings.log_level,
+    }
+
+
+@app.get("/scheduler/jobs")
+async def get_scheduled_jobs():
+    """Get list of all scheduled jobs and their status."""
+    from services.scheduler import list_jobs
+    return {
+        "jobs": list_jobs(),
+        "scheduler_running": scheduler.running if scheduler else False
     }
 
 
