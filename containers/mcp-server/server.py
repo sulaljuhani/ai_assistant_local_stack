@@ -78,12 +78,29 @@ logger.info("MCP Server logging initialized")
 # CONFIGURATION
 # ============================================================================
 
+# FIX: Require POSTGRES_PASSWORD to be set, no default password
+POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
+if not POSTGRES_PASSWORD:
+    logger.error("POSTGRES_PASSWORD environment variable is not set!")
+    raise ValueError(
+        "POSTGRES_PASSWORD is required. "
+        "Set it in your environment or .env file. "
+        "Do not use default passwords in production."
+    )
+
+# Validate password strength (basic check)
+if len(POSTGRES_PASSWORD) < 12:
+    logger.warning(
+        f"POSTGRES_PASSWORD is weak (length: {len(POSTGRES_PASSWORD)}). "
+        "Use at least 12 characters for production."
+    )
+
 DB_CONFIG = {
     "host": os.getenv("POSTGRES_HOST", "postgres-ai-stack"),
     "port": int(os.getenv("POSTGRES_PORT", "5432")),
     "database": os.getenv("POSTGRES_DB", "aistack"),
     "user": os.getenv("POSTGRES_USER", "aistack_user"),
-    "password": os.getenv("POSTGRES_PASSWORD", "changeme"),
+    "password": POSTGRES_PASSWORD,  # FIX: Use validated password
 }
 
 DEFAULT_USER_ID = os.getenv("DEFAULT_USER_ID", "00000000-0000-0000-0000-000000000001")

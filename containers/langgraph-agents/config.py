@@ -4,6 +4,7 @@ Supports easy switching between Ollama and OpenAI-compatible providers.
 """
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
 from typing import Literal
 
 
@@ -61,8 +62,46 @@ class Settings(BaseSettings):
     api_port: int = 8000
     api_reload: bool = False
 
+    # CORS Configuration
+    # Comma-separated list of allowed origins
+    # For production: "https://yourdomain.com,https://app.yourdomain.com"
+    # For development: "http://localhost:3000,http://localhost:3001"
+    cors_allowed_origins: str = "http://localhost:3001"
+
     # Logging
     log_level: str = "INFO"
+
+    # Validators
+    @field_validator('postgres_password')
+    @classmethod
+    def validate_postgres_password(cls, v: str) -> str:
+        """
+        Validate PostgreSQL password.
+
+        FIX: Enforce password requirements to prevent weak/default passwords.
+        """
+        if not v or v == "":
+            raise ValueError(
+                "POSTGRES_PASSWORD is required. "
+                "Set it in your environment or .env file. "
+                "Do not use empty passwords."
+            )
+
+        # Warn about weak passwords
+        if len(v) < 12:
+            import warnings
+            warnings.warn(
+                f"POSTGRES_PASSWORD is weak (length: {len(v)}). "
+                "Recommend at least 12 characters for production.",
+                UserWarning
+            )
+
+        return v
+
+    @property
+    def get_cors_origins(self) -> list[str]:
+        """Parse and return CORS allowed origins as list."""
+        return [origin.strip() for origin in self.cors_allowed_origins.split(",") if origin.strip()]
 
     @property
     def postgres_url(self) -> str:
