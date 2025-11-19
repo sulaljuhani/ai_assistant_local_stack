@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <Container version="2">
-  <Name>n8n-ai-stack</Name>
+  <Name>n8n</Name>
   <Repository>n8nio/n8n:latest</Repository>
   <Registry>https://hub.docker.com/r/n8nio/n8n</Registry>
   <Network>ai-stack-network</Network>
@@ -26,14 +26,14 @@
   <Config Name="Basic Auth User" Target="N8N_BASIC_AUTH_USER" Default="admin" Mode="" Description="Web UI username" Type="Variable" Display="always" Required="true" Mask="false">admin</Config>
   <Config Name="Basic Auth Password" Target="N8N_BASIC_AUTH_PASSWORD" Default="" Mode="" Description="Web UI password - CHANGE THIS!" Type="Variable" Display="always" Required="true" Mask="true">changeme_secure_password</Config>
   <Config Name="Database Type" Target="DB_TYPE" Default="postgresdb" Mode="" Description="Database type (postgresdb recommended)" Type="Variable" Display="always" Required="true" Mask="false">postgresdb</Config>
-  <Config Name="PostgreSQL Host" Target="DB_POSTGRESDB_HOST" Default="postgres-ai-stack" Mode="" Description="PostgreSQL container hostname" Type="Variable" Display="always" Required="true" Mask="false">postgres-ai-stack</Config>
+  <Config Name="PostgreSQL Host" Target="DB_POSTGRESDB_HOST" Default="postgres" Mode="" Description="PostgreSQL container hostname" Type="Variable" Display="always" Required="true" Mask="false">postgres</Config>
   <Config Name="PostgreSQL Port" Target="DB_POSTGRESDB_PORT" Default="5432" Mode="" Description="PostgreSQL port (internal, not host port)" Type="Variable" Display="always" Required="true" Mask="false">5432</Config>
   <Config Name="PostgreSQL Database" Target="DB_POSTGRESDB_DATABASE" Default="n8n" Mode="" Description="n8n database name (will be auto-created)" Type="Variable" Display="always" Required="true" Mask="false">n8n</Config>
   <Config Name="PostgreSQL User" Target="DB_POSTGRESDB_USER" Default="aistack_user" Mode="" Description="Database username (must match PostgreSQL container)" Type="Variable" Display="always" Required="true" Mask="false">aistack_user</Config>
   <Config Name="PostgreSQL Password" Target="DB_POSTGRESDB_PASSWORD" Default="" Mode="" Description="Database password (must match PostgreSQL container)" Type="Variable" Display="always" Required="true" Mask="true">changeme_secure_password</Config>
   <Config Name="Timezone" Target="GENERIC_TIMEZONE" Default="America/New_York" Mode="" Description="Timezone for cron jobs (e.g., America/New_York, Europe/London)" Type="Variable" Display="always" Required="true" Mask="false">America/New_York</Config>
   <Config Name="Webhook URL" Target="WEBHOOK_URL" Default="http://localhost:5678/" Mode="" Description="Base URL for webhooks (use your server IP/domain if external access needed)" Type="Variable" Display="advanced" Required="false" Mask="false">http://localhost:5678/</Config>
-  <Config Name="n8n Data Directory" Target="/home/node/.n8n" Default="/mnt/user/appdata/ai_stack/n8n/data" Mode="rw" Description="n8n configuration and workflow data" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/ai_stack/n8n/data</Config>
+  <Config Name="n8n Data Directory" Target="/home/node/.n8n" Default="/mnt/user/appdata/n8n" Mode="rw" Description="n8n configuration and workflow data" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/n8n</Config>
   <Config Name="Shared Data Directory" Target="/data" Default="/mnt/user/appdata/ai_stack" Mode="rw" Description="Access to vault, documents, chat_exports, memory_vault" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/ai_stack</Config>
   <Config Name="Workflows Directory" Target="/workflows" Default="/mnt/user/appdata/ai_stack/n8n-workflows" Mode="ro" Description="Pre-built workflow JSON files for import" Type="Path" Display="advanced" Required="false" Mask="false">/mnt/user/appdata/ai_stack/n8n-workflows</Config>
 </Container>

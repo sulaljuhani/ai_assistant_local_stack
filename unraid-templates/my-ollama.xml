@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <Container version="2">
-  <Name>ollama-ai-stack</Name>
+  <Name>ollama</Name>
   <Repository>ollama/ollama:latest</Repository>
   <Registry>https://hub.docker.com/r/ollama/ollama</Registry>
   <Network>ai-stack-network</Network>
@@ -22,7 +22,7 @@
   <DonateLink/>
   <Requires>Create Docker network first: docker network create ai-stack-network. For GPU support, ensure proper drivers are installed.</Requires>
   <Config Name="API Port" Target="11434" Default="11434" Mode="tcp" Description="Ollama API port (OpenAI-compatible)" Type="Port" Display="always" Required="true" Mask="false">11434</Config>
-  <Config Name="Models Directory" Target="/root/.ollama" Default="/mnt/user/appdata/ai_stack/ollama/models" Mode="rw" Description="Ollama models storage (models can be large: llama3.2:3b ~2GB, nomic-embed-text ~274MB)" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/ai_stack/ollama/models</Config>
+  <Config Name="Models Directory" Target="/root/.ollama" Default="/mnt/user/appdata/ollama" Mode="rw" Description="Ollama models storage (models can be large: llama3.2:3b ~2GB, nomic-embed-text ~274MB)" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/ollama</Config>
   <Config Name="GPU Layers" Target="OLLAMA_NUM_GPU" Default="" Mode="" Description="Number of model layers to offload to GPU. Leave empty for auto-detect. Set to 0 for CPU-only." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
   <Config Name="Context Window" Target="OLLAMA_NUM_CTX" Default="4096" Mode="" Description="Context window size (tokens). Default 4096, increase for longer conversations." Type="Variable" Display="advanced" Required="false" Mask="false">4096</Config>
   <Config Name="Parallel Requests" Target="OLLAMA_NUM_PARALLEL" Default="1" Mode="" Description="Number of parallel requests to handle. Increase if you have multiple users." Type="Variable" Display="advanced" Required="false" Mask="false">1</Config>

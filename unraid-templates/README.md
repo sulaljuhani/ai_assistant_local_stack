@@ -6,13 +6,13 @@ This directory contains 7 unRAID XML templates for deploying the complete AI Sta
 
 | Container | Port | Purpose | Dependencies |
 |-----------|------|---------|--------------|
-| **postgres-ai-stack** | 5434 | PostgreSQL database for structured data | None |
-| **qdrant-ai-stack** | 6333 | Vector database for embeddings | None |
-| **redis-ai-stack** | 6379 | Cache and queue | None |
-| **ollama-ai-stack** | 11434 | LLM and embedding models | None |
-| **mcp-server-ai-stack** | 8081 | MCP tools for DB/memory access | postgres, qdrant, ollama |
-| **n8n-ai-stack** | 5678 | Workflow automation | postgres, qdrant, ollama, redis |
-| **anythingllm-ai-stack** | 3001 | Chat interface (main UI) | ollama, qdrant |
+| **postgres** | 5434 | PostgreSQL database for structured data | None |
+| **qdrant** | 6333 | Vector database for embeddings | None |
+| **redis** | 6379 | Cache and queue | None |
+| **ollama** | 11434 | LLM and embedding models | None |
+| **mcp-server** | 8081 | MCP tools for DB/memory access | postgres, qdrant, ollama |
+| **n8n** | 5678 | Workflow automation | postgres, qdrant, ollama, redis |
+| **anythingllm** | 3001 | Chat interface (main UI) | ollama, qdrant |
 
 ## 🚀 Installation Order
 
@@ -24,18 +24,18 @@ docker network create ai-stack-network
 ```
 
 ### Step 2: Install Data Layer (can be done in parallel)
-1. **postgres-ai-stack** - Install and start
-2. **qdrant-ai-stack** - Install and start
-3. **redis-ai-stack** - Install and start
+1. **postgres** - Install and start
+2. **qdrant** - Install and start
+3. **redis** - Install and start
 
 **Wait for all to be healthy before proceeding.**
 
 ### Step 3: Install AI Layer
-4. **ollama-ai-stack** - Install and start
+4. **ollama** - Install and start
    - After starting, pull required models:
    ```bash
-   docker exec ollama-ai-stack ollama pull llama3.2:3b
-   docker exec ollama-ai-stack ollama pull nomic-embed-text
+   docker exec ollama ollama pull llama3.2:3b
+   docker exec ollama ollama pull nomic-embed-text
    ```
    - **Wait for models to download** (llama3.2:3b ~2GB, nomic-embed-text ~274MB)
 
@@ -58,16 +58,16 @@ curl -X PUT "http://YOUR_SERVER_IP:6333/collections/memories" \
 cd /mnt/user/appdata/ai_stack/containers/mcp-server
 
 # Build the image
-docker build -t mcp-server-ai-stack:latest .
+docker build -t mcp-server:latest .
 
 # Then install via unRAID template
 ```
 
-5. **mcp-server-ai-stack** - Install via template
+5. **mcp-server** - Install via template
 
 ### Step 6: Install Application Layer
-6. **n8n-ai-stack** - Install and start
-7. **anythingllm-ai-stack** - Install and start
+6. **n8n** - Install and start
+7. **anythingllm** - Install and start
 
 ## 📝 Installation Instructions
 
@@ -114,21 +114,23 @@ Once published to Community Applications:
 
 ### Storage Paths
 
-All templates use `/mnt/user/appdata/ai_stack/` as the base path:
+Containers installed from Unraid will be located at `/mnt/user/appdata/<container_name>/`:
 
 ```
-/mnt/user/appdata/ai_stack/
-├── postgres/data          # PostgreSQL database files
-├── qdrant/storage         # Vector database files
-├── redis/data             # Redis persistence
-├── ollama/models          # LLM models (large!)
-├── n8n/data               # n8n workflows and settings
-├── anythingllm/storage    # Chat history
-├── vault/                 # Obsidian markdown notes
-├── documents/             # PDFs, DOCX for RAG
-├── memory_vault/          # OpenMemory exports
-├── chat_exports/          # ChatGPT/Claude imports
-└── config/                # Configuration files
+/mnt/user/appdata/
+├── postgres/              # PostgreSQL database files
+├── qdrant/                # Vector database files
+├── redis/                 # Redis persistence
+├── ollama/                # LLM models (large!)
+├── n8n/                   # n8n workflows and settings
+├── anythingllm/           # Chat history and storage
+├── mcp-server/            # MCP server (custom build)
+└── ai_stack/              # Shared data directory
+    ├── vault/             # Obsidian markdown notes
+    ├── documents/         # PDFs, DOCX for RAG
+    ├── memory_vault/      # OpenMemory exports
+    ├── chat_exports/      # ChatGPT/Claude imports
+    └── config/            # Configuration files
 ```
 
 **Make sure your array has enough space!** Ollama models alone can use 10GB+.
@@ -140,7 +142,7 @@ All containers must be on the **ai-stack-network** bridge network.
 If you get connection errors:
 1. Check network exists: `docker network ls | grep ai-stack`
 2. Verify containers are on network: `docker network inspect ai-stack-network`
-3. Test connectivity: `docker exec n8n-ai-stack ping postgres-ai-stack`
+3. Test connectivity: `docker exec n8n ping postgres`
 
 ### GPU Support (Ollama)
 
@@ -172,24 +174,24 @@ If ports are already in use, change them in templates:
 - Check PostgreSQL is running: `docker ps | grep postgres`
 - Test connection:
   ```bash
-  docker exec postgres-ai-stack pg_isready -U aistack_user
+  docker exec postgres pg_isready -U aistack_user
   ```
 
 ### Ollama models not loading
 - Check disk space: Models are large (2-5GB each)
 - Verify models are pulled:
   ```bash
-  docker exec ollama-ai-stack ollama list
+  docker exec ollama ollama list
   ```
 - Pull manually if missing:
   ```bash
-  docker exec ollama-ai-stack ollama pull llama3.2:3b
-  docker exec ollama-ai-stack ollama pull nomic-embed-text
+  docker exec ollama ollama pull llama3.2:3b
+  docker exec ollama ollama pull nomic-embed-text
   ```
 
 ### n8n can't reach other services
 - Verify all containers are on ai-stack-network
-- Use container names (e.g., `postgres-ai-stack`), not IPs
+- Use container names (e.g., `postgres`), not IPs
 - Check n8n environment variables are correct
 
 ### AnythingLLM embedding errors
@@ -203,10 +205,10 @@ After installation, verify all services:
 
 ```bash
 # Check all containers running
-docker ps --filter "name=ai-stack" --format "table {{.Names}}\t{{.Status}}"
+docker ps --format "table {{.Names}}\t{{.Status}}"
 
 # Test PostgreSQL
-docker exec postgres-ai-stack pg_isready
+docker exec postgres pg_isready
 
 # Test Qdrant
 curl -s http://YOUR_SERVER_IP:6333/collections
