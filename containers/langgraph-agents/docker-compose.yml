@@ -38,10 +38,6 @@ services:
       - STATE_MAX_MESSAGES=${STATE_MAX_MESSAGES:-20}
       - STATE_TTL_SECONDS=${STATE_TTL_SECONDS:-86400}
 
-      # n8n
-      - N8N_BASE_URL=${N8N_BASE_URL:-http://n8n:5678}
-      - N8N_WEBHOOK_PATH=${N8N_WEBHOOK_PATH:-/webhook}
-
       # API
       - API_HOST=0.0.0.0
       - API_PORT=8000

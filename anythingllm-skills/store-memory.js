@@ -38,7 +38,8 @@ module.exports = {
   },
 
   async handler({ content, conversation_id, conversation_title = "Untitled Conversation", source = "chat", salience_score = 0.5 }) {
-    const N8N_WEBHOOK = process.env.N8N_WEBHOOK || "http://n8n-ai-stack:5678/webhook/store-chat-turn";
+    const API_URL = process.env.LANGGRAPH_API_URL || "http://langgraph-agents:8080";
+    const endpoint = `${API_URL}/api/memory/store`;
 
     // Validate salience score
     salience_score = Math.min(Math.max(salience_score, 0.0), 1.0);
@@ -48,13 +49,17 @@ module.exports = {
       conversation_id = `conv-${Date.now()}-${Math.random().toString(36).substring(7)}`;
     }
 
+    // Note: Python API expects user_id and role fields
+    // Using 'anythingllm' as default user_id and 'user' as default role
     try {
-      const response = await fetch(N8N_WEBHOOK, {
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
+          user_id: process.env.USER_ID || "anythingllm",
+          role: "user",
           content,
           conversation_id,
           conversation_title,

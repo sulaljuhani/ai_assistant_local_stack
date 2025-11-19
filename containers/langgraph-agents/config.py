@@ -56,10 +56,6 @@ class Settings(BaseSettings):
     state_max_messages: int = 20
     state_ttl_seconds: int = 86400  # 24 hours
 
-    # n8n
-    n8n_base_url: str = "http://n8n:5678"
-    n8n_webhook_path: str = "/webhook"
-
     # API
     api_host: str = "0.0.0.0"
     api_port: int = 8000

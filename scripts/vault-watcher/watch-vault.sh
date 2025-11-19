@@ -6,7 +6,8 @@ set -e
 
 # Configuration
 VAULT_DIR="${VAULT_DIR:-/mnt/user/appdata/ai_stack/vault}"
-N8N_WEBHOOK="${N8N_WEBHOOK:-http://n8n-ai-stack:5678/webhook/reembed-file}"
+LANGGRAPH_API_URL="${LANGGRAPH_API_URL:-http://langgraph-agents:8080}"
+API_ENDPOINT="${LANGGRAPH_API_URL}/api/vault/reembed"
 POSTGRES_HOST="${POSTGRES_HOST:-postgres-ai-stack}"
 POSTGRES_PORT="${POSTGRES_PORT:-5432}"
 POSTGRES_DB="${POSTGRES_DB:-aistack}"
@@ -25,7 +26,7 @@ echo "  AI Stack - Vault File Watcher"
 echo "════════════════════════════════════════════════════════════"
 echo ""
 echo "Watching: $VAULT_DIR"
-echo "Webhook: $N8N_WEBHOOK"
+echo "API Endpoint: $API_ENDPOINT"
 echo "Debounce: ${DEBOUNCE_SECONDS}s"
 echo ""
 
@@ -113,8 +114,8 @@ process_file() {
     echo -e "${GREEN}📝${NC} Processing: $relative_path"
     echo "   Event: $event | Size: $file_size bytes"
 
-    # Trigger n8n webhook for re-embedding
-    RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$N8N_WEBHOOK" \
+    # Trigger Python API endpoint for re-embedding
+    RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$API_ENDPOINT" \
         -H "Content-Type: application/json" \
         -d "{
             \"file_path\": \"$file\",
