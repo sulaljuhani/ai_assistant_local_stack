@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
 AI Stack - MCP Server
-Model Context Protocol server with 17 tools for database and memory access.
+Model Context Protocol server with 12 tools for database access.
+
+Memory functionality provided by OpenMemory (separate container with built-in MCP support).
 
 Tools:
   Database (12):
@@ -10,10 +12,6 @@ Tools:
     - get_tasks_by_status, get_tasks_due_soon
     - search_notes, get_recent_notes
     - get_reminder_categories, get_day_summary, get_week_summary
-
-  Memory (5):
-    - search_memories, get_recent_memories, get_conversation_context
-    - get_memory_by_id, get_related_memories
 """
 
 import asyncio
@@ -24,12 +22,9 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 import asyncpg
-import httpx
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
-from qdrant_client import QdrantClient
-from qdrant_client.models import Filter, FieldCondition, MatchValue
 
 # ============================================================================
 # CONFIGURATION
@@ -43,26 +38,16 @@ DB_CONFIG = {
     "password": os.getenv("POSTGRES_PASSWORD", "changeme"),
 }
 
-QDRANT_CONFIG = {
-    "host": os.getenv("QDRANT_HOST", "qdrant-ai-stack"),
-    "port": int(os.getenv("QDRANT_PORT", "6333")),
-}
-
-OLLAMA_CONFIG = {
-    "host": os.getenv("OLLAMA_HOST", "ollama-ai-stack"),
-    "port": int(os.getenv("OLLAMA_PORT", "11434")),
-    "base_url": f"http://{os.getenv('OLLAMA_HOST', 'ollama-ai-stack')}:{os.getenv('OLLAMA_PORT', '11434')}",
-}
-
 DEFAULT_USER_ID = os.getenv("DEFAULT_USER_ID", "00000000-0000-0000-0000-000000000001")
+
+# Note: Memory functionality now provided by OpenMemory container
+# OpenMemory has built-in MCP support - no custom memory tools needed here
 
 # ============================================================================
 # GLOBAL CONNECTIONS
 # ============================================================================
 
 db_pool: Optional[asyncpg.Pool] = None
-qdrant_client: Optional[QdrantClient] = None
-http_client: Optional[httpx.AsyncClient] = None
 
 # ============================================================================
 # CONNECTION MANAGEMENT
@@ -75,30 +60,11 @@ async def get_db_pool() -> asyncpg.Pool:
         db_pool = await asyncpg.create_pool(**DB_CONFIG, min_size=2, max_size=10)
     return db_pool
 
-def get_qdrant_client() -> QdrantClient:
-    """Get or create Qdrant client."""
-    global qdrant_client
-    if qdrant_client is None:
-        qdrant_client = QdrantClient(
-            host=QDRANT_CONFIG["host"],
-            port=QDRANT_CONFIG["port"],
-        )
-    return qdrant_client
-
-async def get_http_client() -> httpx.AsyncClient:
-    """Get or create HTTP client for Ollama."""
-    global http_client
-    if http_client is None:
-        http_client = httpx.AsyncClient(timeout=30.0)
-    return http_client
-
 async def cleanup():
     """Clean up connections."""
-    global db_pool, qdrant_client, http_client
+    global db_pool
     if db_pool:
         await db_pool.close()
-    if http_client:
-        await http_client.aclose()
 
 # ============================================================================
 # HELPER FUNCTIONS
@@ -115,24 +81,6 @@ def format_date(dt: Optional[datetime]) -> str:
     if dt is None:
         return "N/A"
     return dt.strftime("%Y-%m-%d")
-
-async def generate_embedding(text: str) -> List[float]:
-    """Generate embedding using Ollama."""
-    client = await get_http_client()
-    try:
-        response = await client.post(
-            f"{OLLAMA_CONFIG['base_url']}/api/embeddings",
-            json={
-                "model": "nomic-embed-text",
-                "prompt": text,
-            },
-        )
-        response.raise_for_status()
-        data = response.json()
-        return data.get("embedding", [])
-    except Exception as e:
-        print(f"Error generating embedding: {e}", file=sys.stderr)
-        return []
 
 # ============================================================================
 # DATABASE TOOLS (12)
@@ -439,231 +387,11 @@ async def get_week_summary() -> str:
         return "".join(result)
 
 # ============================================================================
-# MEMORY TOOLS (5)
-# ============================================================================
-
-async def search_memories(query: str, sector: Optional[str] = None, limit: int = 10) -> str:
-    """Search memories using vector similarity."""
-    # Generate embedding for query
-    query_embedding = await generate_embedding(query)
-    if not query_embedding:
-        return "Error: Could not generate embedding for query."
-
-    # Search Qdrant
-    qdrant = get_qdrant_client()
-    search_filter = Filter(
-        must=[
-            FieldCondition(key="user_id", match=MatchValue(value=DEFAULT_USER_ID))
-        ]
-    )
-
-    if sector:
-        search_filter.must.append(
-            FieldCondition(key="sector", match=MatchValue(value=sector))
-        )
-
-    try:
-        search_results = qdrant.search(
-            collection_name="memories",
-            query_vector=query_embedding,
-            query_filter=search_filter,
-            limit=limit,
-            score_threshold=0.5,
-        )
-    except Exception as e:
-        return f"Error searching Qdrant: {e}"
-
-    if not search_results:
-        return f"No memories found matching '{query}'" + (f" in sector '{sector}'" if sector else "")
-
-    # Get full memory details from PostgreSQL
-    memory_ids = [hit.id.split("_")[0] for hit in search_results]  # Extract memory_id from qdrant_point_id
-
-    pool = await get_db_pool()
-    async with pool.acquire() as conn:
-        rows = await conn.fetch("""
-            SELECT m.id, m.content, m.salience_score, m.created_at, m.source,
-                   ARRAY_AGG(ms.sector) as sectors
-            FROM memories m
-            JOIN memory_sectors ms ON m.id = ms.memory_id
-            WHERE m.id = ANY($1::uuid[])
-            GROUP BY m.id, m.content, m.salience_score, m.created_at, m.source
-            ORDER BY m.salience_score DESC
-        """, memory_ids)
-
-    result = [f"🧠 Memories matching '{query}' ({len(rows)})\n"]
-    for i, row in enumerate(rows, 1):
-        sectors_str = ", ".join(row['sectors'])
-        result.append(
-            f"\n{i}. [{row['source']}] Salience: {row['salience_score']:.2f}\n"
-            f"   Sectors: {sectors_str}\n"
-            f"   {row['content'][:200]}{'...' if len(row['content']) > 200 else ''}\n"
-            f"   Created: {format_datetime(row['created_at'])}\n"
-        )
-    return "".join(result)
-
-async def get_recent_memories(limit: int = 10, sector: Optional[str] = None) -> str:
-    """Get recently created memories."""
-    pool = await get_db_pool()
-    async with pool.acquire() as conn:
-        if sector:
-            rows = await conn.fetch("""
-                SELECT m.id, m.content, m.salience_score, m.created_at, m.source,
-                       ARRAY_AGG(ms.sector) as sectors
-                FROM memories m
-                JOIN memory_sectors ms ON m.id = ms.memory_id
-                WHERE m.user_id = $1 AND m.is_archived = FALSE
-                  AND EXISTS (SELECT 1 FROM memory_sectors ms2 WHERE ms2.memory_id = m.id AND ms2.sector = $3)
-                GROUP BY m.id, m.content, m.salience_score, m.created_at, m.source
-                ORDER BY m.created_at DESC
-                LIMIT $2
-            """, UUID(DEFAULT_USER_ID), limit, sector)
-        else:
-            rows = await conn.fetch("""
-                SELECT m.id, m.content, m.salience_score, m.created_at, m.source,
-                       ARRAY_AGG(ms.sector) as sectors
-                FROM memories m
-                JOIN memory_sectors ms ON m.id = ms.memory_id
-                WHERE m.user_id = $1 AND m.is_archived = FALSE
-                GROUP BY m.id, m.content, m.salience_score, m.created_at, m.source
-                ORDER BY m.created_at DESC
-                LIMIT $2
-            """, UUID(DEFAULT_USER_ID), limit)
-
-        if not rows:
-            return "No recent memories found."
-
-        sector_filter = f" ({sector})" if sector else ""
-        result = [f"🧠 Recent Memories{sector_filter} ({len(rows)})\n"]
-        for i, row in enumerate(rows, 1):
-            sectors_str = ", ".join(row['sectors'])
-            result.append(
-                f"\n{i}. [{row['source']}] Salience: {row['salience_score']:.2f}\n"
-                f"   Sectors: {sectors_str}\n"
-                f"   {row['content'][:150]}{'...' if len(row['content']) > 150 else ''}\n"
-                f"   {format_datetime(row['created_at'])}\n"
-            )
-        return "".join(result)
-
-async def get_conversation_context(conversation_id: str) -> str:
-    """Get all memories from a specific conversation."""
-    pool = await get_db_pool()
-    async with pool.acquire() as conn:
-        # Get conversation details
-        conv = await conn.fetchrow("""
-            SELECT title, source, started_at, message_count
-            FROM conversations
-            WHERE id = $1
-        """, UUID(conversation_id))
-
-        if not conv:
-            return f"Conversation not found: {conversation_id}"
-
-        # Get memories
-        rows = await conn.fetch("""
-            SELECT m.content, m.created_at, ARRAY_AGG(ms.sector) as sectors
-            FROM memories m
-            JOIN memory_sectors ms ON m.id = ms.memory_id
-            WHERE m.conversation_id = $1
-              AND m.is_archived = FALSE
-            GROUP BY m.id, m.content, m.created_at
-            ORDER BY m.created_at ASC
-        """, UUID(conversation_id))
-
-        if not rows:
-            return f"No memories found for conversation: {conv['title']}"
-
-        result = [
-            f"💬 Conversation: {conv['title']}\n",
-            f"Source: {conv['source']} • Started: {format_datetime(conv['started_at'])}\n",
-            f"Messages: {conv['message_count']} • Memories: {len(rows)}\n\n",
-        ]
-
-        for i, row in enumerate(rows, 1):
-            sectors_str = ", ".join(row['sectors'])
-            result.append(
-                f"{i}. [{sectors_str}]\n"
-                f"   {row['content'][:200]}{'...' if len(row['content']) > 200 else ''}\n\n"
-            )
-        return "".join(result)
-
-async def get_memory_by_id(memory_id: str) -> str:
-    """Get full details of a specific memory."""
-    pool = await get_db_pool()
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow("""
-            SELECT m.id, m.content, m.content_summary, m.memory_type, m.source,
-                   m.salience_score, m.access_count, m.last_accessed_at,
-                   m.created_at, m.conversation_id,
-                   ARRAY_AGG(ms.sector) as sectors,
-                   c.title as conversation_title
-            FROM memories m
-            JOIN memory_sectors ms ON m.id = ms.memory_id
-            LEFT JOIN conversations c ON m.conversation_id = c.id
-            WHERE m.id = $1
-            GROUP BY m.id, m.content, m.content_summary, m.memory_type, m.source,
-                     m.salience_score, m.access_count, m.last_accessed_at,
-                     m.created_at, m.conversation_id, c.title
-        """, UUID(memory_id))
-
-        if not row:
-            return f"Memory not found: {memory_id}"
-
-        # Update access count
-        await conn.execute("""
-            UPDATE memories
-            SET access_count = access_count + 1,
-                last_accessed_at = NOW()
-            WHERE id = $1
-        """, UUID(memory_id))
-
-        sectors_str = ", ".join(row['sectors'])
-        result = [
-            f"🧠 Memory Details\n\n",
-            f"ID: {row['id']}\n",
-            f"Type: {row['memory_type']} • Source: {row['source']}\n",
-            f"Sectors: {sectors_str}\n",
-            f"Salience: {row['salience_score']:.2f} • Access count: {row['access_count']}\n",
-            f"Created: {format_datetime(row['created_at'])}\n",
-        ]
-
-        if row['conversation_title']:
-            result.append(f"Conversation: {row['conversation_title']}\n")
-
-        result.append(f"\nContent:\n{row['content']}\n")
-
-        if row['content_summary']:
-            result.append(f"\nSummary:\n{row['content_summary']}\n")
-
-        return "".join(result)
-
-async def get_related_memories(memory_id: str, max_depth: int = 2) -> str:
-    """Get memories related to a specific memory via links."""
-    pool = await get_db_pool()
-    async with pool.acquire() as conn:
-        rows = await conn.fetch("""
-            SELECT * FROM get_related_memories($1, $2)
-        """, UUID(memory_id), max_depth)
-
-        if not rows:
-            return f"No related memories found for: {memory_id}"
-
-        result = [f"🔗 Related Memories ({len(rows)})\n"]
-        current_depth = 0
-        for row in rows:
-            if row['depth'] != current_depth:
-                current_depth = row['depth']
-                result.append(f"\nDepth {current_depth}:\n")
-
-            result.append(
-                f"  • [{row['link_type']}] Strength: {row['link_strength']:.2f}\n"
-                f"    {row['content'][:150]}{'...' if len(row['content']) > 150 else ''}\n"
-            )
-        return "".join(result)
-
-# ============================================================================
 # MCP SERVER SETUP
 # ============================================================================
+
+# Note: Memory tools removed - use OpenMemory container's built-in MCP support
+# This MCP server now only provides database tools (reminders, tasks, events, notes)
 
 # Create MCP server
 app = Server("ai-stack-mcp-server")
@@ -759,63 +487,6 @@ TOOLS = [
         description="Get summary of this week's activities",
         inputSchema={"type": "object", "properties": {}, "required": []},
     ),
-
-    # Memory tools
-    Tool(
-        name="search_memories",
-        description="Search memories using semantic similarity",
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "query": {"type": "string", "description": "Search query"},
-                "sector": {"type": "string", "description": "Optional sector filter (semantic, episodic, procedural, emotional, reflective)"},
-                "limit": {"type": "integer", "description": "Number of results", "default": 10},
-            },
-            "required": ["query"],
-        },
-    ),
-    Tool(
-        name="get_recent_memories",
-        description="Get recently created memories",
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "limit": {"type": "integer", "description": "Number of memories", "default": 10},
-                "sector": {"type": "string", "description": "Optional sector filter"},
-            },
-            "required": [],
-        },
-    ),
-    Tool(
-        name="get_conversation_context",
-        description="Get all memories from a specific conversation",
-        inputSchema={
-            "type": "object",
-            "properties": {"conversation_id": {"type": "string", "description": "Conversation UUID"}},
-            "required": ["conversation_id"],
-        },
-    ),
-    Tool(
-        name="get_memory_by_id",
-        description="Get full details of a specific memory",
-        inputSchema={
-            "type": "object",
-            "properties": {"memory_id": {"type": "string", "description": "Memory UUID"}},
-            "required": ["memory_id"],
-        },
-    ),
-    Tool(
-        name="get_related_memories",
-        description="Get memories related via links",
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "memory_id": {"type": "string", "description": "Memory UUID"},
-                "max_depth": {"type": "integer", "description": "Maximum link depth", "default": 2},
-            },
-            "required": ["memory_id"],
-        },
-    ),
 ]
 
 @app.list_tools()
@@ -841,21 +512,6 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             "get_reminder_categories": lambda: get_reminder_categories(),
             "get_day_summary": lambda: get_day_summary(),
             "get_week_summary": lambda: get_week_summary(),
-            "search_memories": lambda: search_memories(
-                arguments["query"],
-                arguments.get("sector"),
-                arguments.get("limit", 10)
-            ),
-            "get_recent_memories": lambda: get_recent_memories(
-                arguments.get("limit", 10),
-                arguments.get("sector")
-            ),
-            "get_conversation_context": lambda: get_conversation_context(arguments["conversation_id"]),
-            "get_memory_by_id": lambda: get_memory_by_id(arguments["memory_id"]),
-            "get_related_memories": lambda: get_related_memories(
-                arguments["memory_id"],
-                arguments.get("max_depth", 2)
-            ),
         }
 
         if name not in tool_map:
@@ -877,8 +533,7 @@ async def main():
     """Main entry point."""
     print("Starting AI Stack MCP Server...", file=sys.stderr)
     print(f"PostgreSQL: {DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}", file=sys.stderr)
-    print(f"Qdrant: {QDRANT_CONFIG['host']}:{QDRANT_CONFIG['port']}", file=sys.stderr)
-    print(f"Ollama: {OLLAMA_CONFIG['base_url']}", file=sys.stderr)
+    print("Note: Memory tools now provided by OpenMemory container", file=sys.stderr)
     print("Ready to accept connections.", file=sys.stderr)
 
     try:

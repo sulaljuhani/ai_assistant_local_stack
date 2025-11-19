@@ -1,13 +1,14 @@
 # AI Stack - MCP Server
 
-Model Context Protocol server providing 17 tools for database and memory access.
+Model Context Protocol server providing 12 tools for database access.
+
+**Note:** Memory functionality is now provided by the official [OpenMemory](https://github.com/CaviraOSS/OpenMemory) container, which has built-in MCP support.
 
 ## 🎯 Overview
 
-The MCP server acts as a bridge between AI agents (like Claude) and your AI Stack data. It provides structured access to:
+The MCP server acts as a bridge between AI agents (like Claude) and your AI Stack database. It provides structured access to:
 
 - **12 Database Tools**: Reminders, tasks, events, notes
-- **5 Memory Tools**: OpenMemory search and retrieval
 
 ## 🛠️ Tools Available
 
@@ -28,15 +29,14 @@ The MCP server acts as a bridge between AI agents (like Claude) and your AI Stac
 | `get_day_summary` | Summary of today's activities | None |
 | `get_week_summary` | Summary of this week's activities | None |
 
-### Memory Tools (5)
+### Memory Tools
 
-| Tool | Description | Parameters |
-|------|-------------|------------|
-| `search_memories` | Semantic search across memories | `query`, `sector` (optional), `limit` (default: 10) |
-| `get_recent_memories` | Get recently created memories | `limit` (default: 10), `sector` (optional) |
-| `get_conversation_context` | Get all memories from a conversation | `conversation_id` (UUID) |
-| `get_memory_by_id` | Get full details of a memory | `memory_id` (UUID) |
-| `get_related_memories` | Get linked memories | `memory_id` (UUID), `max_depth` (default: 2) |
+Memory functionality is provided by the **OpenMemory container** (port 8080), which has its own built-in MCP support. See the OpenMemory documentation for:
+- Semantic memory search across conversations
+- Multi-sector classification (semantic, episodic, procedural, emotional, reflective)
+- Automatic importance tracking and temporal decay
+- Memory relationships and waypoint linking
+- Web dashboard for visualization
 
 ## 🚀 Building and Running
 
@@ -76,17 +76,11 @@ Use the `my-mcp-server.xml` template in the unRAID web UI.
 | `POSTGRES_DB` | aistack | Database name |
 | `POSTGRES_USER` | aistack_user | Database username |
 | `POSTGRES_PASSWORD` | *(required)* | Database password |
-| `QDRANT_HOST` | qdrant-ai-stack | Qdrant hostname |
-| `QDRANT_PORT` | 6333 | Qdrant port |
-| `OLLAMA_HOST` | ollama-ai-stack | Ollama hostname |
-| `OLLAMA_PORT` | 11434 | Ollama port |
 | `DEFAULT_USER_ID` | 00000000-0000-0000-0000-000000000001 | Single-user UUID |
 
 ### Dependencies
 
 - **PostgreSQL**: Must be running with migrations applied
-- **Qdrant**: Must have `memories` collection created (768 dimensions)
-- **Ollama**: Must have `nomic-embed-text` model pulled
 
 ## 📊 Architecture
 
@@ -94,32 +88,23 @@ Use the `my-mcp-server.xml` template in the unRAID web UI.
 ┌─────────────────────────────────────────┐
 │         AI Agent (Claude, etc.)         │
 └─────────────────────────────────────────┘
-                    ↓
-            MCP Protocol (stdio)
-                    ↓
-┌─────────────────────────────────────────┐
-│           MCP Server (Python)           │
-│  ┌───────────────────────────────────┐  │
-│  │  Tool Router                      │  │
-│  │  ├─ Database Tools (12)           │  │
-│  │  └─ Memory Tools (5)              │  │
-│  └───────────────────────────────────┘  │
-└─────────────────────────────────────────┘
-         ↓              ↓              ↓
-   PostgreSQL       Qdrant         Ollama
-   (asyncpg)    (qdrant-client)   (httpx)
+          ↓                       ↓
+   MCP Protocol (stdio)    MCP Protocol (HTTP)
+          ↓                       ↓
+┌───────────────────┐   ┌─────────────────────┐
+│   MCP Server      │   │   OpenMemory        │
+│   (Python)        │   │   (Node.js)         │
+│  ┌─────────────┐  │   │  ┌───────────────┐  │
+│  │ Database    │  │   │  │ Memory Tools  │  │
+│  │ Tools (12)  │  │   │  │ + Dashboard   │  │
+│  └─────────────┘  │   │  └───────────────┘  │
+└───────────────────┘   └─────────────────────┘
+          ↓                       ↓
+     PostgreSQL            PostgreSQL + Vectors
+      (asyncpg)            (internal storage)
 ```
 
 ## 🔍 How Tools Work
-
-### Example: Search Memories
-
-1. **User asks**: "What did I learn about Docker?"
-2. **MCP tool called**: `search_memories(query="Docker")`
-3. **Server generates embedding** via Ollama (nomic-embed-text)
-4. **Qdrant vector search** finds similar memory vectors
-5. **PostgreSQL query** retrieves full memory details
-6. **Formatted result** returned to user
 
 ### Example: Get Day Summary
 
