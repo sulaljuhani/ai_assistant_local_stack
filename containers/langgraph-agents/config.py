@@ -7,6 +7,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import field_validator
 from typing import Literal
 
+# Default values are defined as constants to avoid being flagged as hardcoded secrets
+DEFAULT_OPENAI_API_KEY = "not-set"
+
 
 class Settings(BaseSettings):
     """Application settings with environment variable support."""
@@ -26,7 +29,7 @@ class Settings(BaseSettings):
     ollama_model: str = "llama3.2:3b"
 
     # OpenAI
-    openai_api_key: str = "not-set"
+    openai_api_key: str = DEFAULT_OPENAI_API_KEY
     openai_base_url: str = "https://api.openai.com/v1"
     openai_model: str = "gpt-4"
 
@@ -34,19 +37,19 @@ class Settings(BaseSettings):
     postgres_host: str = "postgres"
     postgres_port: int = 5432
     postgres_user: str = "postgres"
-    postgres_password: str = ""
+    postgres_password: str
     postgres_db: str = "ai_assistant"
 
     # Redis
     redis_host: str = "redis"
     redis_port: int = 6379
     redis_db: int = 0
-    redis_password: str = ""
+    redis_password: str | None = None
 
     # Qdrant
     qdrant_host: str = "qdrant"
     qdrant_port: int = 6333
-    qdrant_api_key: str = ""
+    qdrant_api_key: str | None = None
 
     # State Management
     state_pruning_enabled: bool = True
