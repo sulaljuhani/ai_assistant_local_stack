@@ -21,7 +21,9 @@ An intelligent agent service that sits between AnythingLLM and your tools, provi
 
 ## 📦 Files Created
 
-### 1. Agent Service (`containers/pydantic-agent/`)
+> **Note:** The Pydantic AI agent is now installed as a **standalone container**. Source files have been moved out of this repository. See `unraid-templates/my-pydantic-agent.xml` for installation instructions. The documentation below describes the original implementation.
+
+### 1. Agent Service (Originally: `containers/pydantic-agent/`)
 
 | File | Purpose | Lines |
 |------|---------|-------|
@@ -89,7 +91,9 @@ PostgreSQL + Qdrant
 
 ```bash
 # 1. Build the container
-cd /mnt/user/appdata/ai_stack/containers/pydantic-agent
+# Clone repository to separate location for standalone installation
+git clone https://github.com/sulaljuhani/ai_assistant_local_stack.git /mnt/user/appdata/pydantic-agent-source
+cd /mnt/user/appdata/pydantic-agent-source/containers/pydantic-agent
 docker build -t pydantic-agent:latest .
 
 # 2. Deploy using unRAID template
@@ -371,7 +375,7 @@ Before using in production:
 
 | Document | Purpose | Audience |
 |----------|---------|----------|
-| `containers/pydantic-agent/README.md` | Service technical docs | Developers |
+| `unraid-templates/my-pydantic-agent.xml` | Standalone installation template | Deployers |
 | `docs/PYDANTIC_AI_AGENT_GUIDE.md` | Deployment & usage | Users/Admins |
 | `anythingllm-skills/ai-assistant.js` | Skill documentation | Integrators |
 | `PYDANTIC_AI_IMPLEMENTATION.md` | Implementation summary | Everyone |

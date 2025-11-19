@@ -834,7 +834,7 @@ Test 4: Semantic Search
 - AutoGen framework
 
 **Your Existing Code:**
-- Pydantic AI agent: `containers/pydantic-agent/main.py`
+- Pydantic AI agent: Installed separately (see `unraid-templates/my-pydantic-agent.xml`)
 - n8n workflows: For tool implementation reference
 - Database schema: `migrations/`
 
