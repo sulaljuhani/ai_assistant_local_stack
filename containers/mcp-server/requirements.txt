@@ -1,17 +1,14 @@
 # AI Stack - MCP Server Dependencies
 # Pinned versions for reproducibility and security
+#
+# NOTE: This MCP server only handles database tools (reminders, tasks, events, notes)
+# Memory functionality is provided by OpenMemory container (separate service)
 
 # MCP SDK
 mcp==1.1.2
 
 # Database
 asyncpg==0.29.0
-
-# Vector database
-qdrant-client==1.11.3
-
-# HTTP client for Ollama
-httpx==0.27.2
 
 # Async support
 anyio==4.6.2

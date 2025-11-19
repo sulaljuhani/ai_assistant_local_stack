@@ -1,16 +1,17 @@
 # AI Stack - unRAID Container Templates
 
-This directory contains 7 unRAID XML templates for deploying the complete AI Stack on unRAID servers.
+This directory contains 8 unRAID XML templates for deploying the complete AI Stack on unRAID servers.
 
 ## 📦 Container Overview
 
 | Container | Port | Purpose | Dependencies |
 |-----------|------|---------|--------------|
 | **postgres** | 5434 | PostgreSQL database for structured data | None |
-| **qdrant** | 6333 | Vector database for embeddings | None |
+| **qdrant** | 6333 | Vector database for document embeddings | None |
 | **redis** | 6379 | Cache and queue | None |
 | **ollama** | 11434 | LLM and embedding models | None |
-| **mcp-server** | 8081 | MCP tools for DB/memory access | postgres, qdrant, ollama |
+| **openmemory** | 8080 | Long-term memory for AI agents (MCP) | postgres, ollama |
+| **mcp-server** | 8081 | MCP tools for database access | postgres |
 | **n8n** | 5678 | Workflow automation | postgres, qdrant, ollama, redis |
 | **anythingllm** | 3001 | Chat interface (main UI) | ollama, qdrant |
 
@@ -46,13 +47,22 @@ curl -X PUT "http://YOUR_SERVER_IP:6333/collections/knowledge_base" \
   -H "Content-Type: application/json" \
   -d '{"vectors": {"size": 768, "distance": "Cosine"}}'
 
-# Create memories collection (OpenMemory)
-curl -X PUT "http://YOUR_SERVER_IP:6333/collections/memories" \
-  -H "Content-Type: application/json" \
-  -d '{"vectors": {"size": 768, "distance": "Cosine"}}'
+# NOTE: OpenMemory container manages its own vector storage internally
 ```
 
-### Step 5: Build and Install MCP Server
+### Step 5: Create OpenMemory Database
+```bash
+# OpenMemory needs its own database in PostgreSQL
+docker exec postgres-ai-stack psql -U aistack_user -c "CREATE DATABASE openmemory;"
+```
+
+### Step 6: Install OpenMemory
+5. **openmemory** - Install via template
+   - Uses PostgreSQL backend for metadata
+   - Ollama for embeddings (nomic-embed-text)
+   - Provides MCP server for AI memory
+
+### Step 7: Build and Install MCP Server
 ```bash
 # Navigate to MCP server directory (will be created in setup)
 cd /mnt/user/appdata/ai_stack/containers/mcp-server
@@ -63,11 +73,11 @@ docker build -t mcp-server:latest .
 # Then install via unRAID template
 ```
 
-5. **mcp-server** - Install via template
+6. **mcp-server** - Install via template
 
-### Step 6: Install Application Layer
-6. **n8n** - Install and start
-7. **anythingllm** - Install and start
+### Step 8: Install Application Layer
+7. **n8n** - Install and start
+8. **anythingllm** - Install and start
 
 ## 📝 Installation Instructions
 

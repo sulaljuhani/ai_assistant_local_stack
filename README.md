@@ -1,6 +1,6 @@
 # 🧠 AI Stack - Complete Local AI Assistant with OpenMemory
 
-A comprehensive, 100% local AI assistant stack with long-term memory, running entirely on your own hardware. No cloud dependencies, complete privacy, unified memory across all AI conversations.
+A comprehensive, 100% local AI assistant stack with long-term memory powered by [OpenMemory](https://github.com/CaviraOSS/OpenMemory), running entirely on your own hardware. No cloud dependencies, complete privacy, unified memory across all AI conversations.
 
 ## 🎯 What is This?
 
@@ -16,13 +16,14 @@ AI Stack combines multiple open-source tools into a unified system that:
 
 This repository contains a **complete, production-ready** AI Stack with:
 
-✅ **7 unRAID Container Templates** - Deploy with one click  
-✅ **Database Schema** - 18 tables with OpenMemory support  
-✅ **MCP Server** - 17 tools for AI access (12 DB + 5 Memory)  
-✅ **Qdrant Collections** - 768-dim vector storage  
-✅ **Vault File Watcher** - Auto-embed Obsidian notes  
-✅ **ChatGPT Importer** - Import conversation history  
-✅ **System Monitor** - Real-time health dashboard  
+✅ **8 unRAID Container Templates** - Deploy with one click
+✅ **OpenMemory Integration** - Official long-term memory system with MCP support
+✅ **Database Schema** - Personal data management (tasks, reminders, events, notes)
+✅ **MCP Server** - 12 database tools for AI access
+✅ **Qdrant Collections** - 768-dim vector storage for documents
+✅ **Vault File Watcher** - Auto-embed Obsidian notes
+✅ **ChatGPT Importer** - Import conversation history to OpenMemory
+✅ **System Monitor** - Real-time health dashboard
 ✅ **Complete Documentation** - READMEs for every component  
 
 ## 🚀 Quick Start
@@ -38,6 +39,7 @@ Use templates in `unraid-templates/`:
 - `my-qdrant.xml`
 - `my-redis.xml`
 - `my-ollama.xml`
+- `my-openmemory.xml` ⭐ NEW - Official OpenMemory integration
 - `my-mcp-server.xml`
 - `my-n8n.xml`
 - `my-anythingllm.xml`
@@ -74,12 +76,13 @@ docker exec ollama-ai-stack ollama pull nomic-embed-text
 
 | Component | Status | Description |
 |-----------|--------|-------------|
-| **unRAID Templates** | ✅ Complete | 7 XML templates for easy deployment |
-| **Database Schema** | ✅ Complete | PostgreSQL with OpenMemory (8 migrations) |
-| **MCP Server** | ✅ Complete | 17 tools, async, 850+ lines |
-| **Qdrant Setup** | ✅ Complete | Init + verification scripts |
+| **unRAID Templates** | ✅ Complete | 8 XML templates for easy deployment |
+| **OpenMemory** | ✅ Integrated | Official long-term memory system with MCP |
+| **Database Schema** | ✅ Complete | PostgreSQL for personal data (7 migrations) |
+| **MCP Server** | ✅ Complete | 12 database tools, async, 550+ lines |
+| **Qdrant Setup** | ✅ Complete | Document embeddings + verification |
 | **Vault Watcher** | ✅ Complete | Bash + PowerShell, real-time |
-| **ChatGPT Importer** | ✅ Complete | Full conversation import |
+| **ChatGPT Importer** | ✅ Complete | Import to OpenMemory |
 | **System Monitor** | ✅ Complete | Real-time dashboard |
 | **Documentation** | ✅ Complete | 2000+ lines across all READMEs |
 
@@ -176,6 +179,7 @@ MIT License
 ## 🙏 Credits
 
 Built with:
+- [OpenMemory](https://github.com/CaviraOSS/OpenMemory) - Long-term memory for AI agents
 - [Ollama](https://ollama.ai/)
 - [Qdrant](https://qdrant.tech/)
 - [PostgreSQL](https://postgresql.org/)
