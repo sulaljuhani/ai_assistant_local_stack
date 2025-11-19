@@ -21,8 +21,8 @@ AI Stack combines multiple open-source tools into a unified system that:
 
 This repository contains a **complete, production-ready** AI Stack with:
 
-✅ **8 Core unRAID Container Templates** - Deploy with one click (+ optional Pydantic AI template for standalone install)
-✅ **Intelligent Agent Layer** - Pydantic AI conversational middleware with specialized agents
+✅ **8 Core unRAID Container Templates** - Deploy with one click
+✅ **Intelligent Agent Layer** - LangGraph multi-agent system with 3 specialized agents (production-ready)
 ✅ **OpenMemory Integration** - Official long-term memory system with MCP support
 ✅ **Database Schema** - Personal data management (tasks, reminders, events, notes, food log)
 ✅ **MCP Server** - 12 database tools for AI access
@@ -52,8 +52,9 @@ Use templates in `unraid-templates/`:
 - `my-n8n.xml`
 - `my-anythingllm.xml`
 
-**Optional - Install Separately:**
-- `my-pydantic-agent.xml` ⭐ Intelligent agent layer (installed separately, see template for build instructions)
+**Optional - Intelligent Agent Layer:**
+- Use **LangGraph Multi-Agent System** (recommended): See `containers/langgraph-agents/` - Production-ready, fully implemented
+- OR `my-pydantic-agent.xml` (legacy, source code removed from repo)
 
 ### 3. Initialize Database
 ```bash
@@ -83,36 +84,87 @@ docker exec ollama-ai-stack ollama pull nomic-embed-text
 - **n8n**: http://your-server:5678
 - **System Monitor**: `./scripts/monitor-system.sh`
 
-## 🤖 Intelligent Agent System
+## ❓ FAQ
 
-AI Stack features a **multi-layer agent architecture** for intelligent, conversational task management:
+### Do I need to install pydantic-agent or is containers/langgraph-agents enough?
 
-### **Pydantic AI Agent Layer** (Current - Ready to Deploy)
+**Short Answer:** `containers/langgraph-agents` is all you need. It's fully implemented and production-ready.
 
-Intelligent conversational middleware that sits between AnythingLLM and your tools:
+**Detailed Answer:**
+- **Pydantic AI Agent**: Referenced in docs, but **source code was removed** from this repository. It was a simpler, single-agent implementation. If you see documentation mentioning `containers/pydantic-agent`, note that this directory no longer exists in the repo.
 
-- ✅ **Evaluates Every Request** - Understands intent, asks clarifying questions
-- ✅ **Validates Before Execution** - Prevents errors, ensures data completeness
-- ✅ **Smart Suggestions** - Offers intelligent defaults and recommendations
-- ✅ **Conversation Memory** - Maintains context across multiple turns
-- ✅ **Tool Orchestration** - Routes to n8n workflows or direct database operations
+- **LangGraph Multi-Agent System** (`containers/langgraph-agents/`): This is the **complete, production-ready** replacement. It's more advanced with:
+  - 3 specialized agents (Food, Task, Event)
+  - Redis-based state persistence
+  - Hybrid routing and intelligent handoffs
+  - 20+ specialized tools
+  - Full error handling and rate limiting
 
-**Available Tools:**
-- `create_task` - Task creation with validation and smart defaults
-- `create_reminder` - Time-aware reminder creation
-- `search_tasks` - Flexible task searching with filters
-- `get_tasks_today` - Today's task overview
-- `get_events_today` - Calendar integration
-- `update_task` - Task modifications with context
-- `log_food` - Food logging with meal suggestions
+**Recommendation:** Use the LangGraph Multi-Agent System. It's ready to deploy and provides significantly more capabilities than the legacy pydantic-agent.
 
-**See:** `docs/PYDANTIC_AI_AGENT_GUIDE.md` for deployment and usage
+**Deployment:** See `containers/langgraph-agents/README.md` for complete setup instructions.
 
 ---
 
-### **LangGraph Multi-Agent System** (Planned - Future Enhancement)
+## 🤖 Intelligent Agent System
 
-Advanced multi-agent orchestration with specialized domain experts:
+AI Stack features an **advanced multi-agent architecture** for intelligent, conversational task management:
+
+### **LangGraph Multi-Agent System** ⭐ (Recommended - Production Ready)
+
+**Status:** ✅ Fully implemented and ready to deploy
+
+Advanced multi-agent orchestration with specialized domain experts in `containers/langgraph-agents/`:
+
+**Architecture:**
+- **3 Specialized Agents**: Food, Task, Event - each with domain expertise
+- **Hybrid Routing**: Fast keyword matching + LLM fallback for complex queries
+- **State Persistence**: Redis-based conversation management
+- **Intelligent Handoffs**: Seamless agent-to-agent transitions with context preservation
+
+**Key Features:**
+- ✅ **Multi-Agent Collaboration** - Agents hand off to each other intelligently
+- ✅ **Hybrid Search** - Combines database queries with vector search
+- ✅ **Production Ready** - Full error handling, rate limiting, logging
+- ✅ **Flexible LLM** - Supports Ollama (local) and OpenAI-compatible providers
+- ✅ **Tool-Rich** - 20+ specialized tools across all domains
+
+**See:** `containers/langgraph-agents/README.md` for deployment and architecture details
+
+---
+
+### **Pydantic AI Agent Layer** (Legacy - Deprecated)
+
+**Status:** 📋 Source code removed from repository, docs remain for reference
+
+Single-agent conversational middleware (simpler than LangGraph):
+
+- ✅ **Evaluates Every Request** - Understands intent, asks clarifying questions
+- ✅ **Validates Before Execution** - Prevents errors, ensures data completeness
+- ✅ **Tool Orchestration** - Routes to n8n workflows or direct database operations
+
+**Note:** Use LangGraph Multi-Agent System instead for a more capable, production-ready solution.
+
+**See:** `docs/PYDANTIC_AI_AGENT_GUIDE.md` for reference (deployment requires external source)
+
+---
+
+### **Agent Comparison**
+
+| Feature | LangGraph Multi-Agent | Pydantic AI Agent |
+|---------|---------------------|-------------------|
+| **Status** | ✅ Production Ready | ⚠️ Source Removed |
+| **Architecture** | 3 specialized agents | Single agent |
+| **Routing** | Hybrid (keyword+LLM) | Direct |
+| **State Management** | Redis persistence | In-memory |
+| **Tools** | 20+ specialized | 7 general |
+| **Handoffs** | Intelligent agent transitions | N/A |
+| **Vector Search** | ✅ Integrated | ⚠️ Via n8n only |
+| **Recommendation** | **Use This** | Legacy |
+
+---
+
+### **Agent Capabilities Detail**
 
 #### **Food Agent** 🍽️
 **Expertise:** Food logging, meal suggestions, dietary patterns
@@ -200,8 +252,8 @@ Task Agent: "I see you were discussing food. Groceries for salmon?"
 | Component | Status | Description |
 |-----------|--------|-------------|
 | **unRAID Templates** | ✅ Complete | 9 XML templates for easy deployment |
-| **Pydantic AI Agent** | ✅ Complete | Intelligent conversational middleware, 650+ lines |
-| **LangGraph Agents** | 📋 Planned | Multi-agent system with specialists (see plan) |
+| **LangGraph Agents** | ✅ Complete | Production-ready multi-agent system, 3 specialists |
+| **Pydantic AI Agent** | ⚠️ Deprecated | Legacy agent (source removed, docs remain for reference) |
 | **OpenMemory** | ✅ Integrated | Official long-term memory system with MCP |
 | **Database Schema** | ✅ Complete | PostgreSQL for personal data (9 migrations) |
 | **MCP Server** | ✅ Complete | 12 database tools, async, 550+ lines |
@@ -219,7 +271,7 @@ ai_assistant_local_stack/
 ├── migrations/                # 9 SQL migrations
 ├── containers/
 │   ├── mcp-server/           # MCP server source
-│   └── pydantic-agent/       # Pydantic AI agent service
+│   └── langgraph-agents/     # LangGraph multi-agent system (production-ready)
 ├── anythingllm-skills/        # Custom AnythingLLM skills
 ├── scripts/
 │   ├── qdrant/               # Qdrant init & verification
@@ -233,7 +285,7 @@ ai_assistant_local_stack/
 
 ## 🔧 Key Technologies
 
-- **AI Agents**: Pydantic AI 0.0.13 (current), LangGraph (planned)
+- **AI Agents**: LangGraph 0.2.50 (production-ready multi-agent), Pydantic AI (legacy/deprecated)
 - **Embedding Model**: nomic-embed-text (768 dimensions)
 - **LLM**: Ollama llama3.2:3b (2GB, fast, local)
 - **Vector DB**: Qdrant (cosine similarity)
@@ -248,10 +300,10 @@ ai_assistant_local_stack/
 Each component has detailed documentation:
 
 ### **AI Agents**
-- **Pydantic AI Agent**: `docs/PYDANTIC_AI_AGENT_GUIDE.md` - Deployment and usage guide
-- **Agent Service**: See `unraid-templates/my-pydantic-agent.xml` for standalone installation instructions
-- **LangGraph Plan**: `docs/LANGGRAPH_MULTI_AGENT_PLAN.md` - Multi-agent implementation roadmap
-- **Implementation**: `docs/PYDANTIC_AI_IMPLEMENTATION.md` - What was built and why
+- **LangGraph Multi-Agent** ⭐: `containers/langgraph-agents/README.md` - Production-ready deployment guide
+- **LangGraph Architecture**: `containers/langgraph-agents/ARCHITECTURE.md` - System design and implementation
+- **LangGraph Plan**: `docs/LANGGRAPH_MULTI_AGENT_PLAN.md` - Multi-agent implementation details
+- **Pydantic AI Agent** (Legacy): `docs/PYDANTIC_AI_AGENT_GUIDE.md` - Reference only (source removed)
 
 ### **Core Components**
 - **unRAID Templates**: `unraid-templates/README.md`
@@ -324,13 +376,14 @@ Built with:
 - **SQL migrations**: 10 files, 1,232 lines
 - **n8n workflows**: 21 workflows, 6,292 lines
 - **Documentation**: 25+ files, 18,773 lines
-- **AI Agent tools**: 7 (current), 25+ (planned multi-agent)
+- **AI Agents**: 3 specialized agents (Food, Task, Event) - production-ready
+- **Agent Tools**: 20+ specialized tools across all agents
 - **MCP tools**: 12 database tools
 - **Database tables**: 18+
 - **Database indexes**: 50+
 - **Database functions**: 20+
 - **Vector dimensions**: 768
-- **Containers**: 9 (8 core + 1 agent layer)
+- **Containers**: 9 (8 core + 1 LangGraph agent layer)
 - **Security issues resolved**: 7 (all critical issues fixed)
 
 ## 🔒 Privacy & Personal Use
@@ -350,8 +403,8 @@ MIT License
 ## 🙏 Credits
 
 Built with:
-- [Pydantic AI](https://ai.pydantic.dev/) - Agent framework with type safety
-- [LangGraph](https://langchain-ai.github.io/langgraph/) - Multi-agent orchestration (planned)
+- [LangGraph](https://langchain-ai.github.io/langgraph/) - Multi-agent orchestration (production-ready)
+- [Pydantic AI](https://ai.pydantic.dev/) - Agent framework with type safety (legacy)
 - [OpenMemory](https://github.com/CaviraOSS/OpenMemory) - Long-term memory for AI agents
 - [Ollama](https://ollama.ai/) - Local LLM inference
 - [Qdrant](https://qdrant.tech/) - Vector database
