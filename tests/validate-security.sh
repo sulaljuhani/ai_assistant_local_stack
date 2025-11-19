@@ -20,12 +20,12 @@ NC='\033[0m' # No Color
 
 error() {
     echo -e "${RED}❌ ERROR: $1${NC}"
-    ((ERRORS++))
+    ((ERRORS++)) || true
 }
 
 warning() {
     echo -e "${YELLOW}⚠️  WARNING: $1${NC}"
-    ((WARNINGS++))
+    ((WARNINGS++)) || true
 }
 
 success() {
@@ -81,9 +81,10 @@ if [ -d "n8n-workflows" ]; then
         if [ -f "$file" ]; then
             # Check for dangerous patterns
             if grep -q "executeQuery" "$file"; then
-                if grep -q '\{\{ \$json' "$file" && grep -q "VALUES\|WHERE\|SET" "$file"; then
+                # Escape braces properly to avoid "Unmatched {" errors on GNU/BSD grep
+                if grep -q "{{ \\\$json" "$file" && grep -q "VALUES\|WHERE\|SET" "$file"; then
                     warning "Possible SQL injection in $(basename "$file")"
-                    ((VULNERABLE_COUNT++))
+                    ((VULNERABLE_COUNT++)) || true
                 fi
             fi
         fi
