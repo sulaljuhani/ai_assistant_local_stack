@@ -6,9 +6,12 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from langchain_core.messages import HumanMessage, AIMessage
 
@@ -22,6 +25,9 @@ from utils.redis_client import close_redis_client
 # Setup logging
 setup_logging()
 logger = get_logger(__name__)
+
+# Setup rate limiting
+limiter = Limiter(key_func=get_remote_address, default_limits=["100/hour"])
 
 
 # Global workflow instance
@@ -67,6 +73,10 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # FIX: Specific methods only
     allow_headers=["Content-Type", "Authorization", "X-Requested-With"],  # FIX: Specific headers
 )
+
+# Add rate limiting
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 # ============================================================================
@@ -134,7 +144,8 @@ async def health():
 
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
+@limiter.limit("20/minute")  # Allow 20 chat requests per minute per IP
+async def chat(request: Request, chat_request: ChatRequest):
     """
     Send a message to the multi-agent system.
 
@@ -145,22 +156,22 @@ async def chat(request: ChatRequest):
     4. Return response with agent information
     """
     try:
-        logger.info(f"Chat request from user {request.user_id}: {request.message[:50]}...")
+        logger.info(f"Chat request from user {chat_request.user_id}: {chat_request.message[:50]}...")
 
         # Create config for checkpointing
         config = {
             "configurable": {
-                "thread_id": request.session_id,
+                "thread_id": chat_request.session_id,
             }
         }
 
         # Get or create state
         # Note: LangGraph will load state from checkpointer if it exists
         initial_state = create_initial_state(
-            user_id=request.user_id,
-            workspace=request.workspace,
-            session_id=request.session_id,
-            initial_message=request.message
+            user_id=chat_request.user_id,
+            workspace=chat_request.workspace,
+            session_id=chat_request.session_id,
+            initial_message=chat_request.message
         )
 
         # Invoke workflow
@@ -182,7 +193,7 @@ async def chat(request: ChatRequest):
         return ChatResponse(
             response=response_content,
             agent=result.get("current_agent", "unknown"),
-            session_id=request.session_id,
+            session_id=chat_request.session_id,
             turn_count=result.get("turn_count", 0),
             timestamp=datetime.utcnow().isoformat()
         )
@@ -261,7 +272,8 @@ async def delete_session(session_id: str):
 
 
 @app.post("/chat/stream")
-async def chat_stream(request: ChatRequest):
+@limiter.limit("20/minute")
+async def chat_stream(request: Request, chat_request: ChatRequest):
     """
     Streaming chat endpoint (future enhancement).
 

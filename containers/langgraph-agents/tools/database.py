@@ -117,8 +117,10 @@ async def search_food_log(
         params.append(food_type)
         query += f" AND food_type = ${param_count}"
 
-    # FIX: Validate limit and use it directly (safe since validated)
-    query += f" ORDER BY logged_at DESC LIMIT {limit}"
+    # Use parameterized limit for consistency
+    param_count += 1
+    params.append(limit)
+    query += f" ORDER BY logged_at DESC LIMIT ${param_count}"
 
     try:
         async with pool.acquire() as conn:
@@ -400,8 +402,10 @@ async def search_tasks(
         params.append(priority)
         query += f" AND priority = ${param_count}"
 
-    # FIX: Validate limit and use it directly (safe since validated)
-    query += f" ORDER BY priority DESC, due_date ASC LIMIT {limit}"
+    # Use parameterized limit for consistency
+    param_count += 1
+    params.append(limit)
+    query += f" ORDER BY priority DESC, due_date ASC LIMIT ${param_count}"
 
     try:
         async with pool.acquire() as conn:
@@ -665,8 +669,10 @@ async def search_events(
         params.append(end_date)
         query += f" AND start_time <= ${param_count}"
 
-    # FIX: Validate limit and use it directly (safe since validated)
-    query += f" ORDER BY start_time ASC LIMIT {limit}"
+    # Use parameterized limit for consistency
+    param_count += 1
+    params.append(limit)
+    query += f" ORDER BY start_time ASC LIMIT ${param_count}"
 
     try:
         async with pool.acquire() as conn:
