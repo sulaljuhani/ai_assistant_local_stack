@@ -94,6 +94,8 @@ def setup_scheduler(scheduler: AsyncIOScheduler) -> None:
     from services.maintenance import cleanup_old_data, health_check
     from services.vault_sync import scheduled_vault_sync
     from services.memory_service import enrich_memories, sync_memory_to_vault
+    from services.external_sync import sync_todoist, sync_google_calendar
+    import os
 
     # Job 1: Fire Reminders - every 5 minutes
     # Replaces n8n workflow: 04-fire-reminders.json
@@ -195,6 +197,38 @@ def setup_scheduler(scheduler: AsyncIOScheduler) -> None:
         replace_existing=True
     )
     logger.info("Registered job: memory_vault_sync (every 6 hours)")
+
+    # Job 9: Todoist Sync - every 15 minutes (if enabled)
+    # Replaces n8n workflow: 13-todoist-sync.json
+    todoist_enabled = os.getenv("TODOIST_SYNC_ENABLED", "false").lower() == "true"
+    if todoist_enabled:
+        scheduler.add_job(
+            sync_todoist,
+            'interval',
+            minutes=15,
+            id='todoist_sync',
+            name='Todoist Bidirectional Sync',
+            replace_existing=True
+        )
+        logger.info("Registered job: todoist_sync (every 15 minutes)")
+    else:
+        logger.info("Todoist sync is disabled (set TODOIST_SYNC_ENABLED=true to enable)")
+
+    # Job 10: Google Calendar Sync - every 15 minutes (if enabled)
+    # Replaces n8n workflow: 14-google-calendar-sync.json
+    gcal_enabled = os.getenv("GOOGLE_CALENDAR_SYNC_ENABLED", "false").lower() == "true"
+    if gcal_enabled:
+        scheduler.add_job(
+            sync_google_calendar,
+            'interval',
+            minutes=15,
+            id='gcal_sync',
+            name='Google Calendar Bidirectional Sync',
+            replace_existing=True
+        )
+        logger.info("Registered job: gcal_sync (every 15 minutes)")
+    else:
+        logger.info("Google Calendar sync is disabled (set GOOGLE_CALENDAR_SYNC_ENABLED=true to enable)")
 
     logger.info("All scheduled jobs registered successfully")
 
