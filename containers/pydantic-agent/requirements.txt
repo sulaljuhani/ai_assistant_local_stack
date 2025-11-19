@@ -1,0 +1,22 @@
+# Pydantic AI Agent Service Dependencies
+# For conversational AI agent with tool calling capabilities
+
+# Core dependencies
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+
+# Pydantic AI
+pydantic-ai==0.0.13
+pydantic==2.9.2
+
+# Database
+asyncpg==0.29.0
+
+# HTTP client for calling n8n webhooks
+httpx==0.27.2
+
+# Async utilities
+anyio==4.6.2
+
+# Date/time parsing
+python-dateutil==2.9.0
