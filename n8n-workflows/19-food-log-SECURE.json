@@ -23,7 +23,7 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "user_id": "=00000000-0000-0000-0000-000000000001",
+            "user_id": "={{ $env.DEFAULT_USER_ID }}",
             "food_name": "={{ $json.body.food_name }}",
             "location": "={{ $json.body.location }}",
             "preference": "={{ $json.body.preference }}",
@@ -82,13 +82,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://ollama-ai-stack:11434/api/embeddings",
+        "url": "={{ $env.OLLAMA_URL }}/api/embeddings",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
             {
               "name": "model",
-              "value": "nomic-embed-text"
+              "value": "={{ $env.EMBEDDING_MODEL }}"
             },
             {
               "name": "prompt",
@@ -181,13 +181,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://ollama-ai-stack:11434/api/embeddings",
+        "url": "={{ $env.OLLAMA_URL }}/api/embeddings",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
             {
               "name": "model",
-              "value": "nomic-embed-text"
+              "value": "={{ $env.EMBEDDING_MODEL }}"
             },
             {
               "name": "prompt",

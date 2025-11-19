@@ -23,7 +23,7 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "user_id": "00000000-0000-0000-0000-000000000001",
+            "user_id": "={{ $env.DEFAULT_USER_ID }}",
             "title": "={{ $json.body.conversation_title || 'Untitled Conversation' }}",
             "source": "={{ $json.body.source || 'chat' }}",
             "external_id": "={{ $json.body.conversation_id }}",
@@ -66,7 +66,7 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "user_id": "00000000-0000-0000-0000-000000000001",
+            "user_id": "={{ $env.DEFAULT_USER_ID }}",
             "content": "={{ $json.body.content }}",
             "memory_type": "explicit",
             "source": "={{ $json.body.source || 'chat' }}",
@@ -93,14 +93,14 @@
     },
     {
       "parameters": {
-        "url": "=http://ollama-ai-stack:11434/api/embeddings",
+        "url": "={{ $env.OLLAMA_URL }}/api/embeddings",
         "method": "POST",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
             {
               "name": "model",
-              "value": "nomic-embed-text"
+              "value": "={{ $env.EMBEDDING_MODEL }}"
             },
             {
               "name": "prompt",
@@ -164,7 +164,7 @@
           "parameters": [
             {
               "name": "points",
-              "value": "={{ [{\"id\": $json.point_id, \"vector\": $json.embedding, \"payload\": {\"user_id\": \"00000000-0000-0000-0000-000000000001\", \"memory_id\": $json.memory_id, \"sector\": $json.sector, \"content\": $json.content, \"salience_score\": 0.5}}] }}"
+              "value": "={{ [{\"id\": $json.point_id, \"vector\": $json.embedding, \"payload\": {\"user_id\": $env.DEFAULT_USER_ID, \"memory_id\": $json.memory_id, \"sector\": $json.sector, \"content\": $json.content, \"salience_score\": 0.5}}] }}"
             }
           ]
         },

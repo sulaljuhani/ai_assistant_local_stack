@@ -39,14 +39,14 @@
     },
     {
       "parameters": {
-        "url": "=http://ollama-ai-stack:11434/api/embeddings",
+        "url": "={{ $env.OLLAMA_URL }}/api/embeddings",
         "method": "POST",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
             {
               "name": "model",
-              "value": "nomic-embed-text"
+              "value": "={{ $env.EMBEDDING_MODEL }}"
             },
             {
               "name": "prompt",
@@ -70,7 +70,7 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "user_id": "00000000-0000-0000-0000-000000000001",
+            "user_id": "={{ $env.DEFAULT_USER_ID }}",
             "file_path": "={{ $item(2).json.file_path }}",
             "file_name": "={{ $item(2).json.file_path.split('/').pop() }}",
             "file_type": "={{ $item(2).json.file_ext }}",
@@ -104,7 +104,7 @@
           "parameters": [
             {
               "name": "points",
-              "value": "={{ [{\"id\": $json.id, \"vector\": $item(3).json.embedding, \"payload\": {\"user_id\": \"00000000-0000-0000-0000-000000000001\", \"document_id\": $json.id, \"file_path\": $item(2).json.file_path, \"file_type\": $item(2).json.file_ext, \"content\": $item(2).json.text.substring(0, 500)}}] }}"
+              "value": "={{ [{\"id\": $json.id, \"vector\": $item(3).json.embedding, \"payload\": {\"user_id\": $env.DEFAULT_USER_ID, \"document_id\": $json.id, \"file_path\": $item(2).json.file_path, \"file_type\": $item(2).json.file_ext, \"content\": $item(2).json.text.substring(0, 500)}}] }}"
             }
           ]
         },
@@ -124,7 +124,7 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "user_id": "00000000-0000-0000-0000-000000000001",
+            "user_id": "={{ $env.DEFAULT_USER_ID }}",
             "file_path": "={{ $item(2).json.file_path }}",
             "file_hash": "={{ $item(2).json.file_hash }}",
             "last_synced_at": "={{ $now }}",

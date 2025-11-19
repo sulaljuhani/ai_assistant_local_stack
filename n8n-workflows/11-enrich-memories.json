@@ -21,7 +21,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT m.id, m.content, m.salience_score, m.access_count, m.created_at\nFROM memories m\nWHERE m.user_id = '00000000-0000-0000-0000-000000000001'\n  AND m.is_archived = FALSE\n  AND m.access_count >= 3\n  AND NOT EXISTS (\n    SELECT 1 FROM memory_enrichments me\n    WHERE me.memory_id = m.id AND me.enrichment_type = 'summary'\n  )\nORDER BY m.access_count DESC, m.salience_score DESC\nLIMIT 20;",
+        "query": "=SELECT m.id, m.content, m.salience_score, m.access_count, m.created_at\nFROM memories m\nWHERE m.user_id = '{{ $env.DEFAULT_USER_ID }}'\n  AND m.is_archived = FALSE\n  AND m.access_count >= 3\n  AND NOT EXISTS (\n    SELECT 1 FROM memory_enrichments me\n    WHERE me.memory_id = m.id AND me.enrichment_type = 'summary'\n  )\nORDER BY m.access_count DESC, m.salience_score DESC\nLIMIT 20;",
         "additionalFields": {}
       },
       "id": "postgres-query",
@@ -73,7 +73,7 @@
     },
     {
       "parameters": {
-        "url": "=http://ollama-ai-stack:11434/api/generate",
+        "url": "={{ $env.OLLAMA_URL }}/api/generate",
         "method": "POST",
         "sendBody": true,
         "bodyParameters": {

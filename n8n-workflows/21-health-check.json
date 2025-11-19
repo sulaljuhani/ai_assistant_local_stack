@@ -1,0 +1,411 @@
+{
+  "name": "Health Check Monitor",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/5 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule: Every 5 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 500]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT 1 as health_check",
+        "options": {}
+      },
+      "id": "check-postgres",
+      "name": "Check PostgreSQL",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [450, 200],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-aistack",
+          "name": "AI Stack PostgreSQL"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "url": "http://qdrant-ai-stack:6333/collections",
+        "options": {}
+      },
+      "id": "check-qdrant",
+      "name": "Check Qdrant",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [450, 300],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.OLLAMA_URL }}/api/tags",
+        "options": {}
+      },
+      "id": "check-ollama",
+      "name": "Check Ollama",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [450, 400],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.OPENMEMORY_URL }}/health",
+        "options": {}
+      },
+      "id": "check-openmemory",
+      "name": "Check OpenMemory",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [450, 600],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "url": "http://redis-ai-stack:6379",
+        "options": {}
+      },
+      "id": "check-redis",
+      "name": "Check Redis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [450, 700],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aggregate health check results\nconst services = {\n  'PostgreSQL': $items('Check PostgreSQL'),\n  'Qdrant': $items('Check Qdrant'),\n  'Ollama': $items('Check Ollama'),\n  'OpenMemory': $items('Check OpenMemory'),\n  'Redis': $items('Check Redis')\n};\n\nconst results = [];\nconst failedServices = [];\n\nfor (const [serviceName, items] of Object.entries(services)) {\n  const item = items[0];\n  \n  let status = 'unknown';\n  let error = null;\n  \n  if (item && item.json) {\n    // Check if there was an error\n    if (item.json.error) {\n      status = 'down';\n      error = item.json.error.message || item.json.error;\n      failedServices.push({ name: serviceName, error: error });\n    } else {\n      status = 'healthy';\n    }\n  } else {\n    status = 'down';\n    error = 'No response';\n    failedServices.push({ name: serviceName, error: error });\n  }\n  \n  results.push({\n    service: serviceName,\n    status: status,\n    error: error,\n    timestamp: new Date().toISOString()\n  });\n}\n\nreturn [{\n  json: {\n    timestamp: new Date().toISOString(),\n    total_services: results.length,\n    healthy: results.filter(r => r.status === 'healthy').length,\n    down: results.filter(r => r.status === 'down').length,\n    services: results,\n    failed_services: failedServices,\n    all_healthy: failedServices.length === 0\n  }\n}];"
+      },
+      "id": "aggregate-results",
+      "name": "Aggregate Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 500]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "health_checks",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "user_id": "={{ $env.DEFAULT_USER_ID }}",
+            "check_time": "={{ $now }}",
+            "total_services": "={{ $json.total_services }}",
+            "healthy_count": "={{ $json.healthy }}",
+            "down_count": "={{ $json.down }}",
+            "all_healthy": "={{ $json.all_healthy }}",
+            "details": "={{ JSON.stringify($json.services) }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "log-health",
+      "name": "Log Health Check",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [850, 500],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-aistack",
+          "name": "AI Stack PostgreSQL"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.all_healthy }}",
+              "operation": "notEqual",
+              "value2": "true"
+            }
+          ]
+        }
+      },
+      "id": "check-failures",
+      "name": "Check if Services Down",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1050, 500]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "reminders",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "user_id": "={{ $env.DEFAULT_USER_ID }}",
+            "title": "⚠️ Service Health Alert",
+            "description": "=Some services are down:\\n\\n{{ $json.failed_services.map(s => `❌ ${s.name}: ${s.error}`).join('\\n') }}\\n\\nCheck the system immediately.",
+            "remind_at": "={{ $now }}",
+            "priority": 3,
+            "status": "pending",
+            "category_id": null
+          }
+        },
+        "options": {}
+      },
+      "id": "create-alert-reminder",
+      "name": "Create Alert Reminder",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1250, 400],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-aistack",
+          "name": "AI Stack PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $env.TELEGRAM_BOT_TOKEN }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "check-telegram",
+      "name": "Check if Telegram Enabled",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1450, 400]
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "={{ $env.TELEGRAM_CHAT_ID }}"
+            },
+            {
+              "name": "text",
+              "value": "=⚠️ *AI Stack Health Alert*\\n\\n🔴 *Services Down:*\\n{{ $('Aggregate Results').item.json.failed_services.map(s => `• ${s.name}: ${s.error}`).join('\\n') }}\\n\\n⏰ Time: {{ new Date().toLocaleString() }}\\n\\n🔧 Action required!"
+            },
+            {
+              "name": "parse_mode",
+              "value": "Markdown"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "send-telegram-alert",
+      "name": "Send Telegram Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1650, 350]
+    },
+    {
+      "parameters": {},
+      "id": "no-telegram",
+      "name": "No Telegram - Skip",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1650, 450]
+    },
+    {
+      "parameters": {},
+      "id": "all-healthy",
+      "name": "All Healthy - No Action",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1250, 600]
+    }
+  ],
+  "connections": {
+    "Schedule: Every 5 minutes": {
+      "main": [
+        [
+          {
+            "node": "Check PostgreSQL",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check Qdrant",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check Ollama",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check OpenMemory",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check Redis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check PostgreSQL": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Qdrant": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Ollama": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check OpenMemory": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Redis": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Results": {
+      "main": [
+        [
+          {
+            "node": "Log Health Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Health Check": {
+      "main": [
+        [
+          {
+            "node": "Check if Services Down",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check if Services Down": {
+      "main": [
+        [
+          {
+            "node": "Create Alert Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "All Healthy - No Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Alert Reminder": {
+      "main": [
+        [
+          {
+            "node": "Check if Telegram Enabled",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check if Telegram Enabled": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Telegram - Skip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": "ai-stack-local"
+  },
+  "id": "21",
+  "tags": []
+}

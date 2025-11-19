@@ -17,9 +17,29 @@
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO food_log (user_id, food_name, location, preference, restaurant_name, description, consumed_at, meal_type, ingredients, tags, calories, notes)\nVALUES (\n  '{{ $env.DEFAULT_USER_ID }}',\n  '{{ $json.body.food_name }}',\n  '{{ $json.body.location }}',\n  '{{ $json.body.preference }}',\n  {{ $json.body.restaurant_name ? `'${$json.body.restaurant_name}'` : 'NULL' }},\n  {{ $json.body.description ? `'${$json.body.description}'` : 'NULL' }},\n  COALESCE('{{ $json.body.consumed_at }}'::timestamp, CURRENT_TIMESTAMP),\n  {{ $json.body.meal_type ? `'${$json.body.meal_type}'` : 'NULL' }},\n  ARRAY[{{ ($json.body.ingredients || []).map(i => `'${i}'`).join(',') }}]::TEXT[],\n  ARRAY[{{ ($json.body.tags || []).map(t => `'${t}'`).join(',') }}]::TEXT[],\n  {{ $json.body.calories || 'NULL' }},\n  {{ $json.body.notes ? `'${$json.body.notes}'` : 'NULL' }}\n)\nRETURNING id, food_name, consumed_at;",
-        "options": {}
+        "operation": "insert",
+        "schema": "public",
+        "table": "food_log",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "user_id": "={{ $env.DEFAULT_USER_ID }}",
+            "food_name": "={{ $json.body.food_name }}",
+            "location": "={{ $json.body.location }}",
+            "preference": "={{ $json.body.preference }}",
+            "restaurant_name": "={{ $json.body.restaurant_name || null }}",
+            "description": "={{ $json.body.description || null }}",
+            "consumed_at": "={{ $json.body.consumed_at || $now }}",
+            "meal_type": "={{ $json.body.meal_type || null }}",
+            "ingredients": "={{ $json.body.ingredients || [] }}",
+            "tags": "={{ $json.body.tags || [] }}",
+            "calories": "={{ $json.body.calories || null }}",
+            "notes": "={{ $json.body.notes || null }}"
+          }
+        },
+        "options": {
+          "returnFields": "id,food_name,consumed_at"
+        }
       },
       "id": "insert-food",
       "name": "Insert Food Entry",
@@ -107,8 +127,17 @@
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "UPDATE food_log SET embedding_generated = true WHERE id = '{{ $('Prepare Embedding Text').item.json.food_id }}'",
+        "operation": "update",
+        "schema": "public",
+        "table": "food_log",
+        "updateKey": "id",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('Prepare Embedding Text').item.json.food_id }}",
+            "embedding_generated": true
+          }
+        },
         "options": {}
       },
       "id": "mark-embedded",
@@ -209,15 +238,45 @@
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT f.*, EXTRACT(DAYS FROM (CURRENT_TIMESTAMP - f.consumed_at))::INTEGER as days_since_eaten\nFROM food_log f\nWHERE f.id = ANY(ARRAY[{{ $json.result.map(r => `'${r.id}'`).join(',') }}])\nORDER BY f.consumed_at ASC\nLIMIT 5;",
+        "jsCode": "// Extract IDs safely from Qdrant results\nconst results = $json.result || [];\nconst ids = results.map(r => r.id);\n\n// Return IDs for next node to use\nreturn ids.map(id => ({ id }));"
+      },
+      "id": "extract-ids",
+      "name": "Extract IDs Safely",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 500]
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": "public",
+        "table": "food_log",
+        "returnAll": true,
+        "where": {
+          "values": [
+            {
+              "column": "id",
+              "condition": "isAnyOf",
+              "value": "={{ $items().map(i => i.json.id) }}"
+            }
+          ]
+        },
+        "sort": {
+          "values": [
+            {
+              "column": "consumed_at",
+              "direction": "ASC"
+            }
+          ]
+        },
+        "limit": 5,
         "options": {}
       },
       "id": "get-details",
       "name": "Get Food Details",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
-      "position": [850, 500],
+      "position": [1050, 500],
       "credentials": {
         "postgres": {
           "id": "postgres-aistack",
@@ -228,14 +287,14 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { recommendations: $json, message: 'Foods you liked that you havent eaten recently' } }}",
+        "responseBody": "={{ { recommendations: $items().map(i => i.json), message: 'Foods you liked that you havent eaten recently' } }}",
         "options": {}
       },
       "id": "recommend-response",
       "name": "Respond with Recommendations",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [1050, 500]
+      "position": [1250, 500]
     }
   ],
   "pinData": {},
@@ -265,6 +324,9 @@
       "main": [[{ "node": "Search Similar Foods", "type": "main", "index": 0 }]]
     },
     "Search Similar Foods": {
+      "main": [[{ "node": "Extract IDs Safely", "type": "main", "index": 0 }]]
+    },
+    "Extract IDs Safely": {
       "main": [[{ "node": "Get Food Details", "type": "main", "index": 0 }]]
     },
     "Get Food Details": {
@@ -275,7 +337,7 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "1",
+  "versionId": "2",
   "meta": {
     "instanceId": "ai-stack-local"
   },

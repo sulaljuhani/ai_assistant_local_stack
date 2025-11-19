@@ -27,7 +27,7 @@
             {
               "column": "user_id",
               "operator": "=",
-              "value": "00000000-0000-0000-0000-000000000001"
+              "value": "={{ $env.DEFAULT_USER_ID }}"
             },
             {
               "column": "name",
@@ -57,7 +57,7 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "user_id": "00000000-0000-0000-0000-000000000001",
+            "user_id": "={{ $env.DEFAULT_USER_ID }}",
             "title": "={{ $json.body.title }}",
             "description": "={{ $json.body.description || null }}",
             "status": "={{ $json.body.status || 'todo' }}",

@@ -40,7 +40,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT 1 FROM imported_chats\nWHERE user_id = '00000000-0000-0000-0000-000000000001'\n  AND file_hash = '{{ $json.file_hash }}';\n",
+        "query": "SELECT 1 FROM imported_chats\nWHERE user_id = '{{ $env.DEFAULT_USER_ID }}'\n  AND file_hash = '{{ $json.file_hash }}';\n",
         "additionalFields": {}
       },
       "id": "postgres-check-duplicate",
@@ -85,7 +85,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO conversations (user_id, title, source, external_id, started_at, ended_at, message_count)\nVALUES ('00000000-0000-0000-0000-000000000001',\n        '{{ $json.title.replace(/'/g, \"''\") }}',\n        'chatgpt',\n        '{{ $json.conversation_id.replace(/'/g, \"''\") }}',\n        to_timestamp({{ $json.created_at || 0 }}),\n        to_timestamp({{ $json.updated_at || 0 }}),\n        {{ $json.messages.length }})\nRETURNING id;",
+        "query": "INSERT INTO conversations (user_id, title, source, external_id, started_at, ended_at, message_count)\nVALUES ('{{ $env.DEFAULT_USER_ID }}',\n        '{{ $json.title.replace(/'/g, \"''\") }}',\n        'chatgpt',\n        '{{ $json.conversation_id.replace(/'/g, \"''\") }}',\n        to_timestamp({{ $json.created_at || 0 }}),\n        to_timestamp({{ $json.updated_at || 0 }}),\n        {{ $json.messages.length }})\nRETURNING id;",
         "additionalFields": {}
       },
       "id": "postgres-create-conversation",
@@ -113,7 +113,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO memories (user_id, content, memory_type, source, conversation_id, event_timestamp)\nVALUES ('00000000-0000-0000-0000-000000000001',\n        '{{ $json.content.replace(/'/g, \"''\") }}',\n        'explicit',\n        'chatgpt',\n        '{{ $json.conversation_id }}',\n        to_timestamp({{ $json.created_at || 0 }}))\nRETURNING id;",
+        "query": "INSERT INTO memories (user_id, content, memory_type, source, conversation_id, event_timestamp)\nVALUES ('{{ $env.DEFAULT_USER_ID }}',\n        '{{ $json.content.replace(/'/g, \"''\") }}',\n        'explicit',\n        'chatgpt',\n        '{{ $json.conversation_id }}',\n        to_timestamp({{ $json.created_at || 0 }}))\nRETURNING id;",
         "additionalFields": {}
       },
       "id": "postgres-create-memory",
@@ -131,7 +131,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO imported_chats (user_id, source, file_path, file_name, file_hash, conversations_count)\nVALUES ('00000000-0000-0000-0000-000000000001',\n        'chatgpt',\n        '{{ $item(2).json.file_path.replace(/'/g, \"''\") }}',\n        '{{ $item(2).json.file_path.split(\"/\").pop().replace(/'/g, \"''\") }}',\n        '{{ $item(2).json.file_hash }}',\n        {{ $item(2).json.conversations.length }});",
+        "query": "INSERT INTO imported_chats (user_id, source, file_path, file_name, file_hash, conversations_count)\nVALUES ('{{ $env.DEFAULT_USER_ID }}',\n        'chatgpt',\n        '{{ $item(2).json.file_path.replace(/'/g, \"''\") }}',\n        '{{ $item(2).json.file_path.split(\"/\").pop().replace(/'/g, \"''\") }}',\n        '{{ $item(2).json.file_hash }}',\n        {{ $item(2).json.conversations.length }});",
         "additionalFields": {}
       },
       "id": "postgres-log-import",

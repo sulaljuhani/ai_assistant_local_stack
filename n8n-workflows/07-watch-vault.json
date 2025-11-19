@@ -29,14 +29,14 @@
     },
     {
       "parameters": {
-        "url": "=http://ollama-ai-stack:11434/api/embeddings",
+        "url": "={{ $env.OLLAMA_URL }}/api/embeddings",
         "method": "POST",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
             {
               "name": "model",
-              "value": "nomic-embed-text"
+              "value": "={{ $env.EMBEDDING_MODEL }}"
             },
             {
               "name": "prompt",
@@ -60,7 +60,7 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "user_id": "00000000-0000-0000-0000-000000000001",
+            "user_id": "={{ $env.DEFAULT_USER_ID }}",
             "title": "={{ $item(0).json.body.relative_path }}",
             "content": "={{ $item(1).json.data.toString('utf-8') }}",
             "file_path": "={{ $item(0).json.body.file_path }}",
@@ -93,7 +93,7 @@
           "parameters": [
             {
               "name": "points",
-              "value": "={{ [{\"id\": $json.id, \"vector\": $item(2).json.embedding, \"payload\": {\"user_id\": \"00000000-0000-0000-0000-000000000001\", \"file_path\": $item(0).json.body.file_path, \"content\": $item(1).json.data.toString(\"utf-8\").substring(0, 500)}}] }}"
+              "value": "={{ [{\"id\": $json.id, \"vector\": $item(2).json.embedding, \"payload\": {\"user_id\": $env.DEFAULT_USER_ID, \"file_path\": $item(0).json.body.file_path, \"content\": $item(1).json.data.toString(\"utf-8\").substring(0, 500)}}] }}"
             }
           ]
         },
@@ -113,7 +113,7 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "user_id": "00000000-0000-0000-0000-000000000001",
+            "user_id": "={{ $env.DEFAULT_USER_ID }}",
             "file_path": "={{ $item(0).json.body.file_path }}",
             "file_hash": "={{ $item(0).json.body.file_hash }}",
             "last_synced_at": "={{ $now }}",

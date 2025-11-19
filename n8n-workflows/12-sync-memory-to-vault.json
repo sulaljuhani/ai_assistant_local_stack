@@ -21,7 +21,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT m.id, m.content, m.salience_score, m.created_at,\n       c.title as conversation_title,\n       array_agg(DISTINCT ms.sector) as sectors\nFROM memories m\nLEFT JOIN conversations c ON c.id = m.conversation_id\nLEFT JOIN memory_sectors ms ON ms.memory_id = m.id\nWHERE m.user_id = '00000000-0000-0000-0000-000000000001'\n  AND m.is_archived = FALSE\n  AND m.salience_score >= 0.7\n  AND m.created_at >= NOW() - INTERVAL '7 days'\nGROUP BY m.id, c.title\nORDER BY m.salience_score DESC\nLIMIT 50;",
+        "query": "SELECT m.id, m.content, m.salience_score, m.created_at,\n       c.title as conversation_title,\n       array_agg(DISTINCT ms.sector) as sectors\nFROM memories m\nLEFT JOIN conversations c ON c.id = m.conversation_id\nLEFT JOIN memory_sectors ms ON ms.memory_id = m.id\nWHERE m.user_id = '{{ $env.DEFAULT_USER_ID }}'\n  AND m.is_archived = FALSE\n  AND m.salience_score >= 0.7\n  AND m.created_at >= NOW() - INTERVAL '7 days'\nGROUP BY m.id, c.title\nORDER BY m.salience_score DESC\nLIMIT 50;",
         "additionalFields": {}
       },
       "id": "postgres-query",

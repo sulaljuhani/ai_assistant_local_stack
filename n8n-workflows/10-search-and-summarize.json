@@ -17,14 +17,14 @@
     },
     {
       "parameters": {
-        "url": "=http://ollama-ai-stack:11434/api/embeddings",
+        "url": "={{ $env.OLLAMA_URL }}/api/embeddings",
         "method": "POST",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
             {
               "name": "model",
-              "value": "nomic-embed-text"
+              "value": "={{ $env.EMBEDDING_MODEL }}"
             },
             {
               "name": "prompt",
@@ -65,7 +65,7 @@
             },
             {
               "name": "filter",
-              "value": "={{ { \"must\": [{ \"key\": \"user_id\", \"match\": { \"value\": \"00000000-0000-0000-0000-000000000001\" }}] } }}"
+              "value": "={{ { \"must\": [{ \"key\": \"user_id\", \"match\": { \"value\": $env.DEFAULT_USER_ID }}] } }}"
             }
           ]
         },
@@ -107,7 +107,7 @@
     },
     {
       "parameters": {
-        "url": "=http://ollama-ai-stack:11434/api/generate",
+        "url": "={{ $env.OLLAMA_URL }}/api/generate",
         "method": "POST",
         "sendBody": true,
         "bodyParameters": {

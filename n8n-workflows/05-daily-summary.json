@@ -21,7 +21,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT \n  (SELECT COUNT(*) FROM tasks WHERE user_id = '00000000-0000-0000-0000-000000000001' AND status != 'done' AND due_date = CURRENT_DATE) as tasks_due_today,\n  (SELECT COUNT(*) FROM tasks WHERE user_id = '00000000-0000-0000-0000-000000000001' AND status = 'done' AND updated_at::date = CURRENT_DATE) as tasks_completed_today,\n  (SELECT COUNT(*) FROM reminders WHERE user_id = '00000000-0000-0000-0000-000000000001' AND remind_at::date = CURRENT_DATE AND status = 'pending') as reminders_today,\n  (SELECT COUNT(*) FROM events WHERE user_id = '00000000-0000-0000-0000-000000000001' AND start_time::date = CURRENT_DATE AND status != 'cancelled') as events_today;",
+        "query": "SELECT \n  (SELECT COUNT(*) FROM tasks WHERE user_id = '{{ $env.DEFAULT_USER_ID }}' AND status != 'done' AND due_date = CURRENT_DATE) as tasks_due_today,\n  (SELECT COUNT(*) FROM tasks WHERE user_id = '{{ $env.DEFAULT_USER_ID }}' AND status = 'done' AND updated_at::date = CURRENT_DATE) as tasks_completed_today,\n  (SELECT COUNT(*) FROM reminders WHERE user_id = '{{ $env.DEFAULT_USER_ID }}' AND remind_at::date = CURRENT_DATE AND status = 'pending') as reminders_today,\n  (SELECT COUNT(*) FROM events WHERE user_id = '{{ $env.DEFAULT_USER_ID }}' AND start_time::date = CURRENT_DATE AND status != 'cancelled') as events_today;",
         "additionalFields": {}
       },
       "id": "postgres-stats",
@@ -39,7 +39,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT id, title, due_date, priority, status\nFROM tasks\nWHERE user_id = '00000000-0000-0000-0000-000000000001'\n  AND status != 'done'\n  AND due_date = CURRENT_DATE\nORDER BY priority DESC, created_at ASC;",
+        "query": "SELECT id, title, due_date, priority, status\nFROM tasks\nWHERE user_id = '{{ $env.DEFAULT_USER_ID }}'\n  AND status != 'done'\n  AND due_date = CURRENT_DATE\nORDER BY priority DESC, created_at ASC;",
         "additionalFields": {}
       },
       "id": "postgres-tasks",
@@ -57,7 +57,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT id, title, start_time, end_time, location\nFROM events\nWHERE user_id = '00000000-0000-0000-0000-000000000001'\n  AND start_time::date = CURRENT_DATE\n  AND status != 'cancelled'\nORDER BY start_time ASC;",
+        "query": "SELECT id, title, start_time, end_time, location\nFROM events\nWHERE user_id = '{{ $env.DEFAULT_USER_ID }}'\n  AND start_time::date = CURRENT_DATE\n  AND status != 'cancelled'\nORDER BY start_time ASC;",
         "additionalFields": {}
       },
       "id": "postgres-events",

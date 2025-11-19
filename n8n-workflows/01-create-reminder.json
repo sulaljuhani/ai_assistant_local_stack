@@ -17,6 +17,48 @@
     },
     {
       "parameters": {
+        "jsCode": "// Inline validation for Create Reminder\nconst input = $json.body || {};\nconst errors = [];\n\n// Validate title (required, 1-200 chars)\nif (!input.title || typeof input.title !== 'string') {\n  errors.push({ field: 'title', message: 'Title is required and must be a string' });\n} else if (input.title.length < 1 || input.title.length > 200) {\n  errors.push({ field: 'title', message: 'Title must be between 1 and 200 characters' });\n}\n\n// Validate description (optional, max 1000 chars)\nif (input.description && typeof input.description !== 'string') {\n  errors.push({ field: 'description', message: 'Description must be a string' });\n} else if (input.description && input.description.length > 1000) {\n  errors.push({ field: 'description', message: 'Description must not exceed 1000 characters' });\n}\n\n// Validate remind_at (required, valid datetime)\nif (!input.remind_at) {\n  errors.push({ field: 'remind_at', message: 'Remind at date/time is required' });\n} else {\n  const reminderDate = new Date(input.remind_at);\n  if (isNaN(reminderDate.getTime())) {\n    errors.push({ field: 'remind_at', message: 'Remind at must be a valid date/time' });\n  }\n}\n\n// Validate priority (optional, enum)\nif (input.priority && !['low', 'medium', 'high'].includes(input.priority)) {\n  errors.push({ field: 'priority', message: 'Priority must be one of: low, medium, high' });\n}\n\n// Validate category (optional, max 50 chars)\nif (input.category && typeof input.category !== 'string') {\n  errors.push({ field: 'category', message: 'Category must be a string' });\n} else if (input.category && input.category.length > 50) {\n  errors.push({ field: 'category', message: 'Category must not exceed 50 characters' });\n}\n\nreturn {\n  ...($json),\n  validation: {\n    valid: errors.length === 0,\n    errors: errors\n  }\n};"
+      },
+      "id": "validate-input",
+      "name": "Validate Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.validation.valid }}",
+              "operation": "equal",
+              "value2": "true"
+            }
+          ]
+        }
+      },
+      "id": "check-validation",
+      "name": "Check Validation",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": false, \"error\": \"Validation failed\", \"errors\": $json.validation.errors } }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-validation-error",
+      "name": "Respond Validation Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [850, 400]
+    },
+    {
+      "parameters": {
         "operation": "select",
         "schema": "public",
         "table": "categories",
@@ -27,12 +69,12 @@
             {
               "column": "user_id",
               "operator": "=",
-              "value": "00000000-0000-0000-0000-000000000001"
+              "value": "={{ $env.DEFAULT_USER_ID }}"
             },
             {
               "column": "name",
               "operator": "=",
-              "value": "={{ $json.body.category || 'General' }}"
+              "value": "={{ $item(0).json.body.category || 'General' }}"
             }
           ]
         }
@@ -41,7 +83,7 @@
       "name": "Get Category ID",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
-      "position": [450, 300],
+      "position": [850, 200],
       "credentials": {
         "postgres": {
           "id": "postgres-ai-stack",
@@ -57,13 +99,13 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "user_id": "00000000-0000-0000-0000-000000000001",
-            "title": "={{ $json.body.title }}",
-            "description": "={{ $json.body.description || null }}",
-            "remind_at": "={{ $json.body.remind_at }}",
+            "user_id": "={{ $env.DEFAULT_USER_ID }}",
+            "title": "={{ $item(0).json.body.title }}",
+            "description": "={{ $item(0).json.body.description || null }}",
+            "remind_at": "={{ $item(0).json.body.remind_at }}",
             "status": "pending",
-            "priority": "={{ $json.body.priority || 'medium' }}",
-            "category_id": "={{ $('Get Category ID').item.json.id }}"
+            "priority": "={{ $item(0).json.body.priority || 'medium' }}",
+            "category_id": "={{ $json.id }}"
           }
         },
         "options": {
@@ -74,7 +116,7 @@
       "name": "PostgreSQL - Insert Reminder",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
-      "position": [650, 300],
+      "position": [1050, 200],
       "credentials": {
         "postgres": {
           "id": "postgres-ai-stack",
@@ -91,7 +133,7 @@
       "name": "Respond Success",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [850, 300]
+      "position": [1250, 200]
     }
   ],
   "connections": {
@@ -99,7 +141,36 @@
       "main": [
         [
           {
+            "node": "Validate Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Input": {
+      "main": [
+        [
+          {
+            "node": "Check Validation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Validation": {
+      "main": [
+        [
+          {
             "node": "Get Category ID",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Validation Error",
             "type": "main",
             "index": 0
           }
