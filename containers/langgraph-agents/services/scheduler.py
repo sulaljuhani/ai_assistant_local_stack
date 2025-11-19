@@ -85,22 +85,79 @@ def setup_scheduler(scheduler: AsyncIOScheduler) -> None:
     # ========================================================================
     # Register Scheduled Jobs
     # ========================================================================
-    # Jobs will be registered here once we create the service functions
-    # in subsequent phases of the migration
 
-    # Example job registration (will be populated in later phases):
-    #
-    # from services.reminders import fire_reminders
-    # scheduler.add_job(
-    #     fire_reminders,
-    #     'interval',
-    #     minutes=5,
-    #     id='fire_reminders',
-    #     name='Fire due reminders',
-    #     replace_existing=True
-    # )
+    from services.reminders import (
+        fire_reminders,
+        generate_daily_summary,
+        expand_recurring_tasks
+    )
+    from services.maintenance import cleanup_old_data, health_check
 
-    logger.info("All scheduled jobs registered")
+    # Job 1: Fire Reminders - every 5 minutes
+    # Replaces n8n workflow: 04-fire-reminders.json
+    scheduler.add_job(
+        fire_reminders,
+        'interval',
+        minutes=5,
+        id='fire_reminders',
+        name='Fire Due Reminders',
+        replace_existing=True
+    )
+    logger.info("Registered job: fire_reminders (every 5 minutes)")
+
+    # Job 2: Daily Summary - 8 AM daily
+    # Replaces n8n workflow: 05-daily-summary.json
+    scheduler.add_job(
+        generate_daily_summary,
+        'cron',
+        hour=8,
+        minute=0,
+        id='daily_summary',
+        name='Generate Daily Summary',
+        replace_existing=True
+    )
+    logger.info("Registered job: daily_summary (8 AM daily)")
+
+    # Job 3: Expand Recurring Tasks - midnight daily
+    # Replaces n8n workflow: 06-expand-recurring-tasks.json
+    scheduler.add_job(
+        expand_recurring_tasks,
+        'cron',
+        hour=0,
+        minute=0,
+        id='expand_recurring',
+        name='Expand Recurring Tasks',
+        replace_existing=True
+    )
+    logger.info("Registered job: expand_recurring (midnight daily)")
+
+    # Job 4: Cleanup Old Data - Sunday 2 AM weekly
+    # Replaces n8n workflow: 08-cleanup-old-data.json
+    scheduler.add_job(
+        cleanup_old_data,
+        'cron',
+        day_of_week='sun',
+        hour=2,
+        minute=0,
+        id='cleanup',
+        name='Weekly Data Cleanup',
+        replace_existing=True
+    )
+    logger.info("Registered job: cleanup (Sunday 2 AM weekly)")
+
+    # Job 5: Health Check - every 5 minutes
+    # Replaces n8n workflow: 21-health-check.json
+    scheduler.add_job(
+        health_check,
+        'interval',
+        minutes=5,
+        id='health_check',
+        name='System Health Check',
+        replace_existing=True
+    )
+    logger.info("Registered job: health_check (every 5 minutes)")
+
+    logger.info("All scheduled jobs registered successfully")
 
 
 async def shutdown_scheduler():

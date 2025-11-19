@@ -23,6 +23,7 @@ from utils.db import close_db_pool
 from utils.redis_client import close_redis_client
 from services.scheduler import setup_scheduler, shutdown_scheduler
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from routers import tasks_router, reminders_router, events_router
 
 # Setup logging
 setup_logging()
@@ -90,6 +91,11 @@ app.add_middleware(
 # Add rate limiting
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Include routers for task management (replaces n8n workflows 01, 02, 03)
+app.include_router(tasks_router)
+app.include_router(reminders_router)
+app.include_router(events_router)
 
 
 # ============================================================================
