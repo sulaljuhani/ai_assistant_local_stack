@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <Container version="2">
-  <Name>qdrant-ai-stack</Name>
+  <Name>qdrant</Name>
   <Repository>qdrant/qdrant:latest</Repository>
   <Registry>https://hub.docker.com/r/qdrant/qdrant</Registry>
   <Network>ai-stack-network</Network>
@@ -23,6 +23,6 @@
   <Requires>Create Docker network first: docker network create ai-stack-network</Requires>
   <Config Name="HTTP API Port" Target="6333" Default="6333" Mode="tcp" Description="Qdrant HTTP API and Web UI port" Type="Port" Display="always" Required="true" Mask="false">6333</Config>
   <Config Name="gRPC Port" Target="6334" Default="6334" Mode="tcp" Description="Qdrant gRPC port (optional, for high-performance clients)" Type="Port" Display="advanced" Required="false" Mask="false">6334</Config>
-  <Config Name="Storage Directory" Target="/qdrant/storage" Default="/mnt/user/appdata/ai_stack/qdrant/storage" Mode="rw" Description="Qdrant vector storage directory" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/ai_stack/qdrant/storage</Config>
-  <Config Name="Snapshots Directory" Target="/qdrant/snapshots" Default="/mnt/user/appdata/ai_stack/qdrant/snapshots" Mode="rw" Description="Qdrant backup snapshots directory" Type="Path" Display="advanced" Required="false" Mask="false">/mnt/user/appdata/ai_stack/qdrant/snapshots</Config>
+  <Config Name="Storage Directory" Target="/qdrant/storage" Default="/mnt/user/appdata/qdrant" Mode="rw" Description="Qdrant vector storage directory" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/qdrant</Config>
+  <Config Name="Snapshots Directory" Target="/qdrant/snapshots" Default="/mnt/user/appdata/qdrant/snapshots" Mode="rw" Description="Qdrant backup snapshots directory" Type="Path" Display="advanced" Required="false" Mask="false">/mnt/user/appdata/qdrant/snapshots</Config>
 </Container>

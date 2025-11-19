@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <Container version="2">
-  <Name>anythingllm-ai-stack</Name>
+  <Name>anythingllm</Name>
   <Repository>mintplexlabs/anythingllm:latest</Repository>
   <Registry>https://hub.docker.com/r/mintplexlabs/anythingllm</Registry>
   <Network>ai-stack-network</Network>
@@ -22,17 +22,17 @@
   <DonateLink/>
   <Requires>Create Docker network first: docker network create ai-stack-network. Ollama and Qdrant containers must be running.</Requires>
   <Config Name="Web UI Port" Target="3001" Default="3001" Mode="tcp" Description="AnythingLLM web interface port" Type="Port" Display="always" Required="true" Mask="false">3001</Config>
-  <Config Name="Storage Directory" Target="/app/server/storage" Default="/mnt/user/appdata/ai_stack/anythingllm/storage" Mode="rw" Description="AnythingLLM internal storage (chats, settings, workspaces)" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/ai_stack/anythingllm/storage</Config>
+  <Config Name="Storage Directory" Target="/app/server/storage" Default="/mnt/user/appdata/anythingllm" Mode="rw" Description="AnythingLLM internal storage (chats, settings, workspaces)" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/anythingllm</Config>
   <Config Name="Documents Directory" Target="/app/collector/hotdir" Default="/mnt/user/appdata/ai_stack/documents" Mode="rw" Description="Documents for RAG ingestion (PDFs, DOCX, TXT, etc.)" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/ai_stack/documents</Config>
   <Config Name="Vault Directory" Target="/vault" Default="/mnt/user/appdata/ai_stack/vault" Mode="rw" Description="Obsidian vault - markdown notes for RAG" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/ai_stack/vault</Config>
   <Config Name="Custom Skills Directory" Target="/app/server/storage/custom-skills" Default="/mnt/user/appdata/ai_stack/anythingllm-custom-skills" Mode="ro" Description="Custom JavaScript skills (create-reminder, create-task, search-memory, etc.)" Type="Path" Display="advanced" Required="false" Mask="false">/mnt/user/appdata/ai_stack/anythingllm-custom-skills</Config>
   <Config Name="LLM Provider" Target="LLM_PROVIDER" Default="ollama" Mode="" Description="LLM provider (ollama for local models)" Type="Variable" Display="always" Required="true" Mask="false">ollama</Config>
-  <Config Name="Ollama Base URL" Target="OLLAMA_BASE_URL" Default="http://ollama-ai-stack:11434" Mode="" Description="Ollama API endpoint (container hostname)" Type="Variable" Display="always" Required="true" Mask="false">http://ollama-ai-stack:11434</Config>
+  <Config Name="Ollama Base URL" Target="OLLAMA_BASE_URL" Default="http://ollama:11434" Mode="" Description="Ollama API endpoint (container hostname)" Type="Variable" Display="always" Required="true" Mask="false">http://ollama:11434</Config>
   <Config Name="Ollama Model" Target="OLLAMA_MODEL" Default="llama3.2:3b" Mode="" Description="Default chat model (llama3.2:3b recommended, must be pulled first)" Type="Variable" Display="always" Required="true" Mask="false">llama3.2:3b</Config>
   <Config Name="Embedding Provider" Target="EMBEDDING_PROVIDER" Default="ollama" Mode="" Description="Embedding provider (ollama for local embeddings)" Type="Variable" Display="always" Required="true" Mask="false">ollama</Config>
   <Config Name="Embedding Model" Target="EMBEDDING_MODEL" Default="nomic-embed-text" Mode="" Description="Embedding model (nomic-embed-text = 768 dims, must be pulled first)" Type="Variable" Display="always" Required="true" Mask="false">nomic-embed-text</Config>
   <Config Name="Vector Database" Target="VECTOR_DB" Default="qdrant" Mode="" Description="Vector database provider (qdrant)" Type="Variable" Display="always" Required="true" Mask="false">qdrant</Config>
-  <Config Name="Qdrant Endpoint" Target="QDRANT_ENDPOINT" Default="http://qdrant-ai-stack:6333" Mode="" Description="Qdrant API endpoint (container hostname)" Type="Variable" Display="always" Required="true" Mask="false">http://qdrant-ai-stack:6333</Config>
+  <Config Name="Qdrant Endpoint" Target="QDRANT_ENDPOINT" Default="http://qdrant:6333" Mode="" Description="Qdrant API endpoint (container hostname)" Type="Variable" Display="always" Required="true" Mask="false">http://qdrant:6333</Config>
   <Config Name="Auth Token" Target="AUTH_TOKEN" Default="" Mode="" Description="Optional: JWT token for API authentication. Leave empty for no auth." Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
   <Config Name="Disable Telemetry" Target="DISABLE_TELEMETRY" Default="true" Mode="" Description="Disable telemetry to AnythingLLM servers (true recommended for privacy)" Type="Variable" Display="advanced" Required="false" Mask="false">true</Config>
 </Container>

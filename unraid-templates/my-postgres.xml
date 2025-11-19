@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <Container version="2">
-  <Name>postgres-ai-stack</Name>
+  <Name>postgres</Name>
   <Repository>postgres:16-alpine</Repository>
   <Registry>https://hub.docker.com/_/postgres</Registry>
   <Network>ai-stack-network</Network>
@@ -25,6 +25,6 @@
   <Config Name="Database User" Target="POSTGRES_USER" Default="aistack_user" Mode="" Description="PostgreSQL database username" Type="Variable" Display="always" Required="true" Mask="false">aistack_user</Config>
   <Config Name="Database Password" Target="POSTGRES_PASSWORD" Default="" Mode="" Description="PostgreSQL database password - CHANGE THIS TO A SECURE PASSWORD!" Type="Variable" Display="always" Required="true" Mask="true">changeme_secure_password</Config>
   <Config Name="Database Name" Target="POSTGRES_DB" Default="aistack" Mode="" Description="Main database name" Type="Variable" Display="always" Required="true" Mask="false">aistack</Config>
-  <Config Name="Data Directory" Target="/var/lib/postgresql/data" Default="/mnt/user/appdata/ai_stack/postgres/data" Mode="rw" Description="PostgreSQL data storage directory" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/ai_stack/postgres/data</Config>
+  <Config Name="Data Directory" Target="/var/lib/postgresql/data" Default="/mnt/user/appdata/postgres" Mode="rw" Description="PostgreSQL data storage directory" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/postgres</Config>
   <Config Name="Migrations Directory" Target="/docker-entrypoint-initdb.d" Default="/mnt/user/appdata/ai_stack/migrations" Mode="ro" Description="SQL migration files (will run on first start)" Type="Path" Display="always" Required="false" Mask="false">/mnt/user/appdata/ai_stack/migrations</Config>
 </Container>
