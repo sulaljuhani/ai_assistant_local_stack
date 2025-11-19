@@ -21,12 +21,19 @@ except ImportError:
     sys.exit(1)
 
 # Configuration
+# FIX: Require POSTGRES_PASSWORD to be set, no default password
+POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
+if not POSTGRES_PASSWORD:
+    print("ERROR: POSTGRES_PASSWORD environment variable is not set!")
+    print("Set it in your environment or .env file.")
+    sys.exit(1)
+
 DB_CONFIG = {
     "host": os.getenv("POSTGRES_HOST", "localhost"),
     "port": int(os.getenv("POSTGRES_PORT", "5434")),
     "database": os.getenv("POSTGRES_DB", "aistack"),
     "user": os.getenv("POSTGRES_USER", "aistack_user"),
-    "password": os.getenv("POSTGRES_PASSWORD", "changeme"),
+    "password": POSTGRES_PASSWORD,  # FIX: Use validated password
 }
 
 QDRANT_CONFIG = {

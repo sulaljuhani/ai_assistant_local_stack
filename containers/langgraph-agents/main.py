@@ -58,13 +58,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Add CORS middleware
+# Add CORS middleware with restricted origins
+# FIX: Use configured allowed origins instead of wildcard
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.get_cors_origins,  # FIX: Restricted to specific origins
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # FIX: Specific methods only
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],  # FIX: Specific headers
 )
 
 
