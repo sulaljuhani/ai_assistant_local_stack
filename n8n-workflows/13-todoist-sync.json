@@ -62,7 +62,7 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "user_id": "00000000-0000-0000-0000-000000000001",
+            "user_id": "={{ $env.DEFAULT_USER_ID }}",
             "title": "={{ $json.content }}",
             "description": "={{ $json.description || null }}",
             "status": "={{ $json.is_completed ? 'done' : 'todo' }}",
@@ -92,7 +92,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "-- Find local tasks that need to be synced to Todoist\nSELECT id, title, description, status, priority, due_date, external_id\nFROM tasks\nWHERE user_id = '00000000-0000-0000-0000-000000000001'\n  AND (external_service IS NULL OR external_service = 'todoist')\n  AND updated_at > (SELECT COALESCE(MAX(last_synced_at), '1970-01-01') FROM sync_log WHERE service = 'todoist')\n  AND external_id IS NULL;",
+        "query": "-- Find local tasks that need to be synced to Todoist\nSELECT id, title, description, status, priority, due_date, external_id\nFROM tasks\nWHERE user_id = '{{ $env.DEFAULT_USER_ID }}'\n  AND (external_service IS NULL OR external_service = 'todoist')\n  AND updated_at > (SELECT COALESCE(MAX(last_synced_at), '1970-01-01') FROM sync_log WHERE service = 'todoist')\n  AND external_id IS NULL;",
         "additionalFields": {}
       },
       "id": "postgres-get-local",

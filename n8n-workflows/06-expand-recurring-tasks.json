@@ -21,7 +21,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT id, user_id, title, description, priority, category_id, recurrence_rule\nFROM tasks\nWHERE user_id = '00000000-0000-0000-0000-000000000001'\n  AND is_recurring = TRUE\n  AND status != 'cancelled'\n  AND (next_recurrence_date IS NULL OR next_recurrence_date <= CURRENT_DATE);",
+        "query": "SELECT id, user_id, title, description, priority, category_id, recurrence_rule\nFROM tasks\nWHERE user_id = '{{ $env.DEFAULT_USER_ID }}'\n  AND is_recurring = TRUE\n  AND status != 'cancelled'\n  AND (next_recurrence_date IS NULL OR next_recurrence_date <= CURRENT_DATE);",
         "additionalFields": {}
       },
       "id": "postgres-query",

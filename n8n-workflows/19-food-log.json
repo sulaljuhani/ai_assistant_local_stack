@@ -18,7 +18,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO food_log (user_id, food_name, location, preference, restaurant_name, description, consumed_at, meal_type, ingredients, tags, calories, notes)\nVALUES (\n  '00000000-0000-0000-0000-000000000001',\n  '{{ $json.body.food_name }}',\n  '{{ $json.body.location }}',\n  '{{ $json.body.preference }}',\n  {{ $json.body.restaurant_name ? `'${$json.body.restaurant_name}'` : 'NULL' }},\n  {{ $json.body.description ? `'${$json.body.description}'` : 'NULL' }},\n  COALESCE('{{ $json.body.consumed_at }}'::timestamp, CURRENT_TIMESTAMP),\n  {{ $json.body.meal_type ? `'${$json.body.meal_type}'` : 'NULL' }},\n  ARRAY[{{ ($json.body.ingredients || []).map(i => `'${i}'`).join(',') }}]::TEXT[],\n  ARRAY[{{ ($json.body.tags || []).map(t => `'${t}'`).join(',') }}]::TEXT[],\n  {{ $json.body.calories || 'NULL' }},\n  {{ $json.body.notes ? `'${$json.body.notes}'` : 'NULL' }}\n)\nRETURNING id, food_name, consumed_at;",
+        "query": "INSERT INTO food_log (user_id, food_name, location, preference, restaurant_name, description, consumed_at, meal_type, ingredients, tags, calories, notes)\nVALUES (\n  '{{ $env.DEFAULT_USER_ID }}',\n  '{{ $json.body.food_name }}',\n  '{{ $json.body.location }}',\n  '{{ $json.body.preference }}',\n  {{ $json.body.restaurant_name ? `'${$json.body.restaurant_name}'` : 'NULL' }},\n  {{ $json.body.description ? `'${$json.body.description}'` : 'NULL' }},\n  COALESCE('{{ $json.body.consumed_at }}'::timestamp, CURRENT_TIMESTAMP),\n  {{ $json.body.meal_type ? `'${$json.body.meal_type}'` : 'NULL' }},\n  ARRAY[{{ ($json.body.ingredients || []).map(i => `'${i}'`).join(',') }}]::TEXT[],\n  ARRAY[{{ ($json.body.tags || []).map(t => `'${t}'`).join(',') }}]::TEXT[],\n  {{ $json.body.calories || 'NULL' }},\n  {{ $json.body.notes ? `'${$json.body.notes}'` : 'NULL' }}\n)\nRETURNING id, food_name, consumed_at;",
         "options": {}
       },
       "id": "insert-food",
@@ -62,13 +62,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://ollama-ai-stack:11434/api/embeddings",
+        "url": "={{ $env.OLLAMA_URL }}/api/embeddings",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
             {
               "name": "model",
-              "value": "nomic-embed-text"
+              "value": "={{ $env.EMBEDDING_MODEL }}"
             },
             {
               "name": "prompt",
@@ -152,13 +152,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://ollama-ai-stack:11434/api/embeddings",
+        "url": "={{ $env.OLLAMA_URL }}/api/embeddings",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
             {
               "name": "model",
-              "value": "nomic-embed-text"
+              "value": "={{ $env.EMBEDDING_MODEL }}"
             },
             {
               "name": "prompt",

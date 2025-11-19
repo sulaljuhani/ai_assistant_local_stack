@@ -1,19 +1,19 @@
 {
-  "name": "Create Event",
+  "name": "Create Reminder",
   "nodes": [
     {
       "parameters": {
         "httpMethod": "POST",
-        "path": "create-event",
+        "path": "create-reminder",
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "webhook-create-event",
+      "id": "webhook-create-reminder",
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1,
       "position": [250, 300],
-      "webhookId": "create-event"
+      "webhookId": "create-reminder"
     },
     {
       "parameters": {
@@ -53,27 +53,25 @@
       "parameters": {
         "operation": "insert",
         "schema": "public",
-        "table": "events",
+        "table": "reminders",
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
             "user_id": "={{ $env.DEFAULT_USER_ID }}",
             "title": "={{ $json.body.title }}",
             "description": "={{ $json.body.description || null }}",
-            "start_time": "={{ $json.body.start_time }}",
-            "end_time": "={{ $json.body.end_time }}",
-            "location": "={{ $json.body.location || null }}",
-            "status": "={{ $json.body.status || 'scheduled' }}",
-            "category_id": "={{ $('Get Category ID').item.json.id }}",
-            "external_calendar_id": "={{ $json.body.external_calendar_id || null }}"
+            "remind_at": "={{ $json.body.remind_at }}",
+            "status": "pending",
+            "priority": "={{ $json.body.priority || 'medium' }}",
+            "category_id": "={{ $('Get Category ID').item.json.id }}"
           }
         },
         "options": {
-          "returnFields": "id,title,start_time,end_time"
+          "returnFields": "id,title,remind_at"
         }
       },
       "id": "postgres-insert",
-      "name": "PostgreSQL - Insert Event",
+      "name": "PostgreSQL - Insert Reminder",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
       "position": [650, 300],
@@ -87,7 +85,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { \"success\": true, \"event\": $json } }}"
+        "responseBody": "={{ { \"success\": true, \"reminder\": $json } }}"
       },
       "id": "respond-success",
       "name": "Respond Success",
@@ -112,14 +110,14 @@
       "main": [
         [
           {
-            "node": "PostgreSQL - Insert Event",
+            "node": "PostgreSQL - Insert Reminder",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "PostgreSQL - Insert Event": {
+    "PostgreSQL - Insert Reminder": {
       "main": [
         [
           {
