@@ -23,7 +23,7 @@ from utils.db import close_db_pool
 from utils.redis_client import close_redis_client
 from services.scheduler import setup_scheduler, shutdown_scheduler
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from routers import tasks_router, reminders_router, events_router, vault_router, documents_router
+from routers import tasks_router, reminders_router, events_router, vault_router, documents_router, memory_router
 
 # Setup logging
 setup_logging()
@@ -100,6 +100,9 @@ app.include_router(events_router)
 # Include routers for vault & document management (replaces n8n workflows 07, 15, 18)
 app.include_router(vault_router)
 app.include_router(documents_router)
+
+# Include routers for OpenMemory (replaces n8n workflows 09, 10, 11, 12)
+app.include_router(memory_router)
 
 
 # ============================================================================

@@ -93,6 +93,7 @@ def setup_scheduler(scheduler: AsyncIOScheduler) -> None:
     )
     from services.maintenance import cleanup_old_data, health_check
     from services.vault_sync import scheduled_vault_sync
+    from services.memory_service import enrich_memories, sync_memory_to_vault
 
     # Job 1: Fire Reminders - every 5 minutes
     # Replaces n8n workflow: 04-fire-reminders.json
@@ -169,6 +170,31 @@ def setup_scheduler(scheduler: AsyncIOScheduler) -> None:
         replace_existing=True
     )
     logger.info("Registered job: vault_sync (every 12 hours)")
+
+    # Job 7: Enrich Memories - 3 AM daily
+    # Replaces n8n workflow: 11-enrich-memories.json
+    scheduler.add_job(
+        enrich_memories,
+        'cron',
+        hour=3,
+        minute=0,
+        id='enrich_memories',
+        name='Enrich Frequently Accessed Memories',
+        replace_existing=True
+    )
+    logger.info("Registered job: enrich_memories (3 AM daily)")
+
+    # Job 8: Sync Memory to Vault - every 6 hours
+    # Replaces n8n workflow: 12-sync-memory-to-vault.json
+    scheduler.add_job(
+        sync_memory_to_vault,
+        'interval',
+        hours=6,
+        id='memory_vault_sync',
+        name='Sync High-Salience Memories to Vault',
+        replace_existing=True
+    )
+    logger.info("Registered job: memory_vault_sync (every 6 hours)")
 
     logger.info("All scheduled jobs registered successfully")
 

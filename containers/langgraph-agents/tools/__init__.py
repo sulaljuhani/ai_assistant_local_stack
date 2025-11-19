@@ -38,6 +38,11 @@ from .documents import (
     search_embedded_documents,
 )
 
+from .memory import (
+    store_chat_turn,
+    search_memories,
+)
+
 __all__ = [
     # Database - Food
     "search_food_log",
@@ -69,4 +74,7 @@ __all__ = [
     "embed_document",
     "reembed_vault_file",
     "search_embedded_documents",
+    # Memory
+    "store_chat_turn",
+    "search_memories",
 ]
