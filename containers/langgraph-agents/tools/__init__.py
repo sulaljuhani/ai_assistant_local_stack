@@ -32,6 +32,12 @@ from .n8n import (
     log_food_with_embedding,
 )
 
+from .documents import (
+    embed_document,
+    reembed_vault_file,
+    search_embedded_documents,
+)
+
 __all__ = [
     # Database - Food
     "search_food_log",
@@ -59,4 +65,8 @@ __all__ = [
     # n8n
     "trigger_n8n_workflow",
     "log_food_with_embedding",
+    # Documents
+    "embed_document",
+    "reembed_vault_file",
+    "search_embedded_documents",
 ]

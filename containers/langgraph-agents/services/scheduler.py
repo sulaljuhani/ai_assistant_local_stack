@@ -92,6 +92,7 @@ def setup_scheduler(scheduler: AsyncIOScheduler) -> None:
         expand_recurring_tasks
     )
     from services.maintenance import cleanup_old_data, health_check
+    from services.vault_sync import scheduled_vault_sync
 
     # Job 1: Fire Reminders - every 5 minutes
     # Replaces n8n workflow: 04-fire-reminders.json
@@ -156,6 +157,18 @@ def setup_scheduler(scheduler: AsyncIOScheduler) -> None:
         replace_existing=True
     )
     logger.info("Registered job: health_check (every 5 minutes)")
+
+    # Job 6: Vault Sync - every 12 hours
+    # Replaces n8n workflow: 18-scheduled-vault-sync.json
+    scheduler.add_job(
+        scheduled_vault_sync,
+        'interval',
+        hours=12,
+        id='vault_sync',
+        name='Scheduled Vault Sync',
+        replace_existing=True
+    )
+    logger.info("Registered job: vault_sync (every 12 hours)")
 
     logger.info("All scheduled jobs registered successfully")
 
