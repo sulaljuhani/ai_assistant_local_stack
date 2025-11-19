@@ -1,6 +1,6 @@
 # AI Stack - AnythingLLM Custom Skills
 
-This directory contains 6 custom JavaScript skills for AnythingLLM that enable the AI to interact with the AI Stack system.
+This directory contains 6 custom JavaScript skills for AnythingLLM that enable the AI to interact with the AI Stack system via the Python FastAPI backend.
 
 ## 🎯 Purpose
 
@@ -9,6 +9,8 @@ These skills allow AnythingLLM to:
 - Store important information as memories
 - Search through stored memories and past conversations
 - Import chat history from other AI platforms (ChatGPT, Claude, Gemini)
+
+All skills call the LangGraph Agents REST API (Python FastAPI with APScheduler).
 
 ## 📦 Skills List
 
@@ -40,8 +42,11 @@ docker cp anythingllm-skills/. anythingllm-ai-stack:/app/server/storage/custom-s
 In your AnythingLLM container, set:
 
 ```bash
-# n8n webhook base URL
-N8N_WEBHOOK=http://n8n-ai-stack:5678/webhook
+# LangGraph Agents API URL
+LANGGRAPH_API_URL=http://langgraph-agents:8080
+
+# Optional: User ID for memory operations (defaults to 'anythingllm')
+USER_ID=your-user-id
 ```
 
 ### 3. Restart AnythingLLM
@@ -165,32 +170,38 @@ In AnythingLLM chat:
 ### How Skills Work
 
 1. **AnythingLLM Agent** decides when to use a skill based on user intent
-2. **Skill handler** makes HTTP POST request to n8n webhook
-3. **n8n workflow** processes the request:
-   - Stores data in PostgreSQL
+2. **Skill handler** makes HTTP POST request to LangGraph Agents REST API
+3. **FastAPI endpoint** processes the request:
+   - Validates input with Pydantic models
+   - Stores data in PostgreSQL using asyncpg
    - Generates embeddings via Ollama (for memories)
    - Stores vectors in Qdrant (for memories)
+   - Triggers scheduled jobs via APScheduler
    - Syncs with external services (Todoist, Google Calendar)
 4. **Result** is returned to AnythingLLM and shown to user
 
 ### Architecture
 
 ```
-User → AnythingLLM → Custom Skill → n8n Webhook → PostgreSQL/Qdrant/Ollama
+User → AnythingLLM → Custom Skill → Python FastAPI → PostgreSQL/Qdrant/Ollama
+                                        ↓
+                                   APScheduler (background jobs)
 ```
 
-### Webhook Endpoints
+### REST API Endpoints
 
-Skills call these n8n webhooks:
+Skills call these Python FastAPI endpoints:
 
-- `http://n8n-ai-stack:5678/webhook/create-reminder`
-- `http://n8n-ai-stack:5678/webhook/create-task`
-- `http://n8n-ai-stack:5678/webhook/create-event`
-- `http://n8n-ai-stack:5678/webhook/store-chat-turn`
-- `http://n8n-ai-stack:5678/webhook/search-memories`
-- `http://n8n-ai-stack:5678/webhook/import-chatgpt`
-- `http://n8n-ai-stack:5678/webhook/import-claude`
-- `http://n8n-ai-stack:5678/webhook/import-gemini`
+- `http://langgraph-agents:8080/api/reminders/create`
+- `http://langgraph-agents:8080/api/tasks/create`
+- `http://langgraph-agents:8080/api/events/create`
+- `http://langgraph-agents:8080/api/memory/store`
+- `http://langgraph-agents:8080/api/memory/search`
+- `http://langgraph-agents:8080/api/import/chatgpt`
+- `http://langgraph-agents:8080/api/import/claude`
+- `http://langgraph-agents:8080/api/import/gemini`
+
+**API Documentation**: http://your-server:8080/docs (Swagger/OpenAPI)
 
 ## ⚙️ Configuration
 
@@ -199,13 +210,11 @@ Skills call these n8n webhooks:
 Set in AnythingLLM container:
 
 ```bash
-# Required
-N8N_WEBHOOK=http://n8n-ai-stack:5678/webhook
+# Required - LangGraph Agents API URL
+LANGGRAPH_API_URL=http://langgraph-agents:8080
 
-# Optional (for specific webhooks)
-N8N_WEBHOOK_CHATGPT=http://n8n-ai-stack:5678/webhook/import-chatgpt
-N8N_WEBHOOK_CLAUDE=http://n8n-ai-stack:5678/webhook/import-claude
-N8N_WEBHOOK_GEMINI=http://n8n-ai-stack:5678/webhook/import-gemini
+# Optional - User ID for memory operations
+USER_ID=anythingllm  # Defaults to 'anythingllm' if not set
 ```
 
 ### Skill Parameters
@@ -227,7 +236,7 @@ Memories are automatically classified into sectors:
 - **Emotional**: Preferences, feelings, likes/dislikes
 - **Reflective**: Insights, patterns, learnings
 
-Classification is done by n8n workflow using keyword matching.
+Classification is done by Python code (`tools/memory.py`) using keyword matching and context analysis.
 
 ## 🐛 Troubleshooting
 
@@ -243,26 +252,31 @@ Classification is done by n8n workflow using keyword matching.
 
 ### Skill Execution Fails
 
-1. **Check n8n is running**:
+1. **Check LangGraph Agents is running**:
    ```bash
-   docker ps | grep n8n
+   docker ps | grep langgraph-agents
    ```
 
-2. **Verify webhook URL**:
+2. **Verify API URL**:
    ```bash
-   docker exec anythingllm-ai-stack env | grep N8N_WEBHOOK
+   docker exec anythingllm-ai-stack env | grep LANGGRAPH_API_URL
    ```
 
-3. **Test webhook manually**:
+3. **Test API manually**:
    ```bash
-   curl -X POST http://n8n-ai-stack:5678/webhook/create-reminder \
+   curl -X POST http://langgraph-agents:8080/api/reminders/create \
      -H "Content-Type: application/json" \
-     -d '{"title": "Test", "remind_at": "2025-11-20T09:00:00Z"}'
+     -d '{"title": "Test", "remind_at": "2025-11-20T09:00:00Z", "priority": "medium", "category": "General"}'
    ```
 
-4. **Check n8n workflow is active**:
-   - Open n8n UI: http://your-server:5678
-   - Check workflow is toggled ON
+4. **Check API health**:
+   ```bash
+   curl http://langgraph-agents:8080/health
+   ```
+
+5. **View API docs**:
+   - Open Swagger UI: http://your-server:8080/docs
+   - Test endpoints interactively
 
 ### Memory Search Returns No Results
 
@@ -301,9 +315,11 @@ This is normal - the system detects duplicate imports via file hash to prevent r
 ## 🔒 Security
 
 - Skills run within AnythingLLM's Node.js environment
-- Network access limited to n8n webhooks
-- No direct database access (goes through n8n)
-- User ID is hardcoded to default UUID (single-user mode)
+- Network access limited to LangGraph Agents API
+- No direct database access (goes through Python API)
+- All inputs validated with Pydantic models
+- User ID defaults to 'anythingllm' (single-user mode)
+- SQL injection prevented by parameterized queries
 
 ## 🎯 Best Practices
 
@@ -341,11 +357,16 @@ This is normal - the system detects duplicate imports via file hash to prevent r
 
 ## 🔗 Related Components
 
-- **n8n Workflows**: `n8n-workflows/` - Backend handlers for skills
+- **LangGraph Agents**: `containers/langgraph-agents/` - Python FastAPI backend with multi-agent system
+- **REST API Routers**: `containers/langgraph-agents/routers/` - Endpoint implementations
+- **Background Services**: `containers/langgraph-agents/services/` - APScheduler jobs
 - **MCP Server**: `containers/mcp-server/` - Alternative API for Claude Desktop
 - **Database Schema**: `migrations/` - PostgreSQL tables
 - **Qdrant Collections**: `scripts/qdrant/` - Vector storage initialization
+- **Migration Documentation**: `docs/N8N_TO_PYTHON_MIGRATION_PLAN.md` - Full migration details
 
 ---
 
 **Enable your AI to remember, recall, and manage your digital life** 🧠✨
+
+> **Note**: These skills previously called n8n webhooks but have been migrated to call Python FastAPI endpoints for better performance, type safety, and maintainability.
