@@ -34,22 +34,25 @@ module.exports = {
   },
 
   async handler({ query, sector, limit = 10, summarize = false }) {
-    const N8N_WEBHOOK = process.env.N8N_WEBHOOK || "http://n8n-ai-stack:5678/webhook/search-memories";
+    const API_URL = process.env.LANGGRAPH_API_URL || "http://langgraph-agents:8080";
+    const endpoint = `${API_URL}/api/memory/search`;
 
     // Ensure limit is within bounds
     limit = Math.min(Math.max(limit, 1), 50);
 
+    // Note: Python API expects user_id field
     try {
-      const response = await fetch(N8N_WEBHOOK, {
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
+          user_id: process.env.USER_ID || "anythingllm",
           query,
           sector,
           limit,
-          summarize
+          generate_summary: summarize
         })
       });
 

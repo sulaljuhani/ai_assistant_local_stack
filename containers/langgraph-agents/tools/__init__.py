@@ -27,9 +27,15 @@ from .hybrid import (
     get_food_recommendations,
 )
 
-from .n8n import (
-    trigger_n8n_workflow,
-    log_food_with_embedding,
+from .documents import (
+    embed_document,
+    reembed_vault_file,
+    search_embedded_documents,
+)
+
+from .memory import (
+    store_chat_turn,
+    search_memories,
 )
 
 __all__ = [
@@ -56,7 +62,11 @@ __all__ = [
     "vector_search_memories",
     # Hybrid
     "get_food_recommendations",
-    # n8n
-    "trigger_n8n_workflow",
-    "log_food_with_embedding",
+    # Documents
+    "embed_document",
+    "reembed_vault_file",
+    "search_embedded_documents",
+    # Memory
+    "store_chat_turn",
+    "search_memories",
 ]

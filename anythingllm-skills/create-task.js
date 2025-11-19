@@ -50,10 +50,11 @@ module.exports = {
   },
 
   async handler({ title, description, status = "todo", priority = "medium", due_date, category = "General", parent_task_id }) {
-    const N8N_WEBHOOK = process.env.N8N_WEBHOOK || "http://n8n-ai-stack:5678/webhook/create-task";
+    const API_URL = process.env.LANGGRAPH_API_URL || "http://langgraph-agents:8080";
+    const endpoint = `${API_URL}/api/tasks/create`;
 
     try {
-      const response = await fetch(N8N_WEBHOOK, {
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"

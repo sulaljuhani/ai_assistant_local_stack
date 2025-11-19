@@ -24,15 +24,17 @@ module.exports = {
   },
 
   async handler({ source, file_path }) {
-    // Map source to webhook endpoint
-    const webhooks = {
-      chatgpt: process.env.N8N_WEBHOOK_CHATGPT || "http://n8n-ai-stack:5678/webhook/import-chatgpt",
-      claude: process.env.N8N_WEBHOOK_CLAUDE || "http://n8n-ai-stack:5678/webhook/import-claude",
-      gemini: process.env.N8N_WEBHOOK_GEMINI || "http://n8n-ai-stack:5678/webhook/import-gemini"
+    const API_URL = process.env.LANGGRAPH_API_URL || "http://langgraph-agents:8080";
+
+    // Map source to API endpoint
+    const endpoints = {
+      chatgpt: `${API_URL}/api/import/chatgpt`,
+      claude: `${API_URL}/api/import/claude`,
+      gemini: `${API_URL}/api/import/gemini`
     };
 
-    const webhook = webhooks[source];
-    if (!webhook) {
+    const endpoint = endpoints[source];
+    if (!endpoint) {
       return {
         success: false,
         error: `Unknown source: ${source}. Must be one of: chatgpt, claude, gemini`
@@ -40,38 +42,47 @@ module.exports = {
     }
 
     try {
-      const response = await fetch(webhook, {
+      // Read file from disk (Node.js environment)
+      const fs = require('fs');
+      const path = require('path');
+
+      if (!fs.existsSync(file_path)) {
+        throw new Error(`File not found: ${file_path}`);
+      }
+
+      // Read file content
+      const fileBuffer = fs.readFileSync(file_path);
+      const fileName = path.basename(file_path);
+
+      // Create form data for multipart upload
+      const FormData = require('form-data');
+      const formData = new FormData();
+      formData.append('file', fileBuffer, fileName);
+      formData.append('user_id', process.env.USER_ID || 'anythingllm');
+      formData.append('default_salience', '0.3');
+
+      const response = await fetch(endpoint, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          file_path
-        })
+        body: formData,
+        headers: formData.getHeaders()
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
       }
 
       const result = await response.json();
 
       if (result.success) {
-        const count = result.conversations || 0;
-        const status = result.status;
-
-        if (status === "duplicate") {
-          return {
-            success: false,
-            message: `⚠️ This ${source} export has already been imported. Duplicate detected.`,
-            status: "duplicate"
-          };
-        }
+        const convCount = result.conversations_imported || 0;
+        const msgCount = result.messages_imported || 0;
 
         return {
           success: true,
-          message: `✅ Successfully imported ${count} conversations from ${source}!\n\nAll messages have been stored as memories and are now searchable.`,
-          conversations_imported: count,
+          message: `✅ Successfully imported ${convCount} conversations (${msgCount} messages) from ${source}!\n\nAll messages have been stored as memories and are now searchable.`,
+          conversations_imported: convCount,
+          messages_imported: msgCount,
           source: source
         };
 
