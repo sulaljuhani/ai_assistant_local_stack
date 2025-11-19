@@ -93,13 +93,13 @@ async def generate_memory_embedding(text: str) -> Optional[List[float]]:
     try:
         import httpx
 
-        ollama_url = f"{settings.ollama_base_url}/api/embeddings"
+        ollama_url = f"{settings.ollama_embed_url}/api/embeddings"
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
                 ollama_url,
                 json={
-                    "model": "nomic-embed-text",
+                    "model": settings.ollama_embed_model,
                     "prompt": text
                 }
             )

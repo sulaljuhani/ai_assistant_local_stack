@@ -24,9 +24,13 @@ class Settings(BaseSettings):
     # LLM Configuration
     llm_provider: Literal["ollama", "openai"] = "ollama"
 
-    # Ollama
+    # Ollama - Conversation LLM
     ollama_base_url: str = "http://ollama:11434"
     ollama_model: str = "llama3.2:3b"
+
+    # Ollama - Embeddings (separate instance if needed)
+    ollama_embed_url: str = "http://ollama:11434"  # Can point to different instance
+    ollama_embed_model: str = "nomic-embed-text"
 
     # OpenAI
     openai_api_key: str = DEFAULT_OPENAI_API_KEY
