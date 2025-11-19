@@ -1,15 +1,15 @@
 <?xml version="1.0"?>
 <Container version="2">
-  <Name>pydantic-agent</Name>
+  <Name>pydantic-agent-ai-stack</Name>
   <Repository>pydantic-agent:latest</Repository>
   <Registry>Local Build</Registry>
   <Network>ai-stack-network</Network>
   <MyIP/>
   <Shell>sh</Shell>
   <Privileged>false</Privileged>
-  <Support>https://github.com/yourusername/ai_stack</Support>
+  <Support>https://github.com/sulaljuhani/ai_assistant_local_stack</Support>
   <Project>https://ai.pydantic.dev/</Project>
-  <Overview>Pydantic AI Agent Service - Intelligent conversational middleware between AnythingLLM and tools. Evaluates requests, asks clarifying questions, validates data, and orchestrates tool execution. Provides smart task management, reminders, food logging with conversation memory.</Overview>
+  <Overview>Pydantic AI Agent Service - Intelligent conversational middleware between AnythingLLM and tools. Evaluates requests, asks clarifying questions, validates data, and orchestrates tool execution. Provides smart task management, reminders, food logging with conversation memory. This is installed SEPARATELY from the main AI Stack - clone the repository and build the image independently.</Overview>
   <Category>Productivity: AI: Status:Beta</Category>
   <WebUI>http://[IP]:[PORT:8000]/</WebUI>
   <TemplateURL/>
@@ -20,7 +20,7 @@
   <DateInstalled/>
   <DonateText/>
   <DonateLink/>
-  <Requires>Build image first: cd /mnt/user/appdata/ai_stack/containers/pydantic-agent &amp;&amp; docker build -t pydantic-agent:latest . Requires: PostgreSQL, Ollama, and n8n containers running on ai-stack-network. Create Docker network: docker network create ai-stack-network</Requires>
+  <Requires>⚠️ STANDALONE INSTALLATION - This container is NOT part of the main AI Stack deployment. Build from source: 1) Clone repository: git clone https://github.com/sulaljuhani/ai_assistant_local_stack.git /mnt/user/appdata/pydantic-agent-source 2) Build: cd /mnt/user/appdata/pydantic-agent-source/containers/pydantic-agent &amp;&amp; docker build -t pydantic-agent:latest . 3) Requires: PostgreSQL, Ollama, n8n on ai-stack-network. 4) Create network: docker network create ai-stack-network</Requires>
 
   <!-- Port Configuration -->
   <Config Name="Agent API Port" Target="8000" Default="8000" Mode="tcp" Description="Pydantic AI Agent API port" Type="Port" Display="always" Required="true" Mask="false">8000</Config>

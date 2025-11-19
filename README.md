@@ -19,7 +19,7 @@ AI Stack combines multiple open-source tools into a unified system that:
 
 This repository contains a **complete, production-ready** AI Stack with:
 
-✅ **9 unRAID Container Templates** - Deploy with one click
+✅ **8 Core unRAID Container Templates** - Deploy with one click (+ optional Pydantic AI template for standalone install)
 ✅ **Intelligent Agent Layer** - Pydantic AI conversational middleware with specialized agents
 ✅ **OpenMemory Integration** - Official long-term memory system with MCP support
 ✅ **Database Schema** - Personal data management (tasks, reminders, events, notes, food log)
@@ -47,7 +47,9 @@ Use templates in `unraid-templates/`:
 - `my-mcp-server.xml`
 - `my-n8n.xml`
 - `my-anythingllm.xml`
-- `my-pydantic-agent.xml` ⭐ NEW - Intelligent agent layer
+
+**Optional - Install Separately:**
+- `my-pydantic-agent.xml` ⭐ Intelligent agent layer (installed separately, see template for build instructions)
 
 ### 3. Initialize Database
 ```bash
@@ -241,7 +243,7 @@ Each component has detailed documentation:
 
 ### **AI Agents**
 - **Pydantic AI Agent**: `docs/PYDANTIC_AI_AGENT_GUIDE.md` - Deployment and usage guide
-- **Agent Service**: `containers/pydantic-agent/README.md` - Technical documentation
+- **Agent Service**: See `unraid-templates/my-pydantic-agent.xml` for standalone installation instructions
 - **LangGraph Plan**: `LANGGRAPH_MULTI_AGENT_PLAN.md` - Multi-agent implementation roadmap
 - **Implementation**: `PYDANTIC_AI_IMPLEMENTATION.md` - What was built and why
 

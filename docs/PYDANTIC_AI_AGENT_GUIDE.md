@@ -1,6 +1,8 @@
 # Pydantic AI Agent - Deployment & Usage Guide
 
-This guide explains the new intelligent agent layer for your AI Stack.
+> **⚠️ Standalone Installation:** The Pydantic AI agent is now installed as a **separate container** outside the main AI Stack. See the "Deployment" section below for installation instructions from the repository.
+
+This guide explains the intelligent agent layer for your AI Stack.
 
 ## 📋 Table of Contents
 
@@ -164,7 +166,9 @@ Agent: [Updates multiple tasks]
 
 ```bash
 # Navigate to agent directory
-cd /mnt/user/appdata/ai_stack/containers/pydantic-agent
+# Clone repository for standalone installation
+git clone https://github.com/sulaljuhani/ai_assistant_local_stack.git /mnt/user/appdata/pydantic-agent-source
+cd /mnt/user/appdata/pydantic-agent-source/containers/pydantic-agent
 
 # Build image
 docker build -t pydantic-agent:latest .
@@ -405,7 +409,7 @@ Agent: "✓ Created:
 
 ### Adjusting System Prompt
 
-Edit `containers/pydantic-agent/main.py`:
+Edit the agent source in your cloned repository (`/mnt/user/appdata/pydantic-agent-source/containers/pydantic-agent/main.py`):
 
 ```python
 task_agent = Agent(
@@ -423,7 +427,9 @@ Rebuild container after changes:
 ```bash
 docker stop pydantic-agent-ai-stack
 docker rm pydantic-agent-ai-stack
-cd /mnt/user/appdata/ai_stack/containers/pydantic-agent
+# Clone repository for standalone installation
+git clone https://github.com/sulaljuhani/ai_assistant_local_stack.git /mnt/user/appdata/pydantic-agent-source
+cd /mnt/user/appdata/pydantic-agent-source/containers/pydantic-agent
 docker build -t pydantic-agent:latest .
 # Redeploy using template or docker run
 ```
@@ -515,7 +521,7 @@ docker logs pydantic-agent-ai-stack | grep "tool_name"
 
 ### Adding New Tools
 
-Edit `containers/pydantic-agent/main.py`:
+Edit the agent source in your cloned repository (`/mnt/user/appdata/pydantic-agent-source/containers/pydantic-agent/main.py`):
 
 ```python
 @task_agent.tool
@@ -636,7 +642,7 @@ docker logs pydantic-agent-ai-stack > agent-logs.txt
 ## Support
 
 **Documentation:**
-- `containers/pydantic-agent/README.md` - Service details
+- `unraid-templates/my-pydantic-agent.xml` - Standalone installation template
 - `anythingllm-skills/ai-assistant.js` - Skill documentation
 
 **Logs:**
