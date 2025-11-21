@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>ai-stack-frontend</Name>
+  <Repository>Build from: /mnt/user/appdata/ai_stack/frontend</Repository>
+  <Registry>Local Build</Registry>
+  <Network>ai-stack-network</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/yourusername/ai_stack</Support>
+  <Project>https://github.com/yourusername/ai_stack</Project>
+  <Overview>Custom dark-mode WebUI for AI Stack - modern React + TypeScript chat interface replacing AnythingLLM. Features multi-agent support (Food/Task/Event), toast notifications, mobile-responsive design, and seamless LangGraph backend integration. 100% local, privacy-first, ChatGPT-inspired dark theme.</Overview>
+  <Category>Productivity: AI: Status:Stable</Category>
+  <WebUI>http://[IP]:[PORT:3001]</WebUI>
+  <TemplateURL/>
+  <Icon>https://raw.githubusercontent.com/react-icons/react-icons/master/react-icons.svg</Icon>
+  <ExtraParams>--network=ai-stack-network</ExtraParams>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires>Create Docker network first: docker network create ai-stack-network. LangGraph agents container must be running. Build from /mnt/user/appdata/ai_stack/frontend directory.</Requires>
+  <Config Name="Web UI Port" Target="3001" Default="3001" Mode="tcp" Description="Frontend web interface port" Type="Port" Display="always" Required="true" Mask="false">3001</Config>
+  <Config Name="Backend API URL" Target="VITE_BACKEND_URL" Default="http://langgraph-agents:8000" Mode="" Description="LangGraph API endpoint (internal Docker network)" Type="Variable" Display="always" Required="true" Mask="false">http://langgraph-agents:8000</Config>
+</Container>

@@ -42,7 +42,7 @@ Create a `.env` file (see `.env.example`):
 
 ```bash
 # Backend API URL
-VITE_BACKEND_URL=http://localhost:8080
+VITE_BACKEND_URL=http://localhost:8000
 ```
 
 **Note:** User ID and workspace are hardcoded in code for single-user system.
@@ -119,7 +119,7 @@ src/
 
 ## 🔌 Backend Integration
 
-Connects to LangGraph FastAPI backend at `http://localhost:8080`:
+Connects to LangGraph FastAPI backend at `http://localhost:8000`:
 
 ### Endpoints Used
 
@@ -192,7 +192,7 @@ Quick start:
 docker build -t ai-stack-frontend .
 
 # Run
-docker run -p 3001:3001 -e VITE_BACKEND_URL=http://localhost:8080 ai-stack-frontend
+docker run -p 3001:3001 -e VITE_BACKEND_URL=http://localhost:8000 ai-stack-frontend
 ```
 
 ## ⌨️ Keyboard Shortcuts
@@ -225,7 +225,7 @@ Optimization strategies:
 **Issue:** "Network error: No response from server"
 
 **Solutions:**
-1. Check backend is running: `curl http://localhost:8080/health`
+1. Check backend is running: `curl http://localhost:8000/health`
 2. Verify `VITE_BACKEND_URL` in `.env`
 3. Check CORS configuration in backend
 4. Ensure ports are not blocked

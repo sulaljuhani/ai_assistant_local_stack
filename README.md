@@ -23,7 +23,8 @@ AI Stack combines multiple open-source tools into a unified system that:
 
 This repository contains a **complete, production-ready** AI Stack with:
 
-✅ **7 Core unRAID Container Templates** - Deploy with one click
+✅ **8 Core unRAID Container Templates** - Deploy with one click
+✅ **Custom WebUI** 🆕 - Modern React chat interface with dark mode, toast notifications, mobile support
 ✅ **LangGraph Multi-Agent System** - FastAPI service with specialized agents and 30+ tools
 ✅ **Python Automation Layer** - 21 REST endpoints + 10 scheduled jobs (migrated from n8n)
 ✅ **OpenMemory Integration** - Official long-term memory system with MCP support
@@ -52,7 +53,8 @@ Use templates in `unraid-templates/`:
 - `my-openmemory.xml` ⭐ Official OpenMemory integration
 - `my-mcp-server.xml`
 - `my-langgraph-agents.xml` ⭐ Multi-agent system with automation
-- `my-anythingllm.xml`
+- `my-frontend.xml` 🆕 Custom WebUI (alternative to AnythingLLM)
+- `my-anythingllm.xml` (optional, can use frontend instead)
 
 ### 3. Initialize Database
 ```bash
@@ -78,10 +80,11 @@ docker exec ollama-ai-stack ollama pull nomic-embed-text
 ```
 
 ### 7. Access Services
-- **AnythingLLM**: http://your-server:3001
-- **LangGraph Agents API**: http://your-server:8080
-  - Swagger docs: http://your-server:8080/docs
-  - Scheduler status: http://your-server:8080/scheduler/jobs
+- **Frontend WebUI** 🆕: http://your-server:3001 (Custom React chat interface)
+- **AnythingLLM** (optional): http://your-server:3001 (if using AnythingLLM instead)
+- **LangGraph Agents API**: http://your-server:8000
+  - Swagger docs: http://your-server:8000/docs
+  - Scheduler status: http://your-server:8000/scheduler/jobs
 - **System Monitor**: `./scripts/monitor-system.sh`
 
 ## 🤖 Intelligent Agent System
@@ -209,6 +212,7 @@ Task Agent: "I see you were discussing food. Groceries for salmon?"
 | Component | Status | Description |
 |-----------|--------|-------------|
 | **unRAID Templates** | ✅ Complete | 8 XML templates for easy deployment |
+| **Custom WebUI** | ✅ Complete | React + TypeScript chat interface, mobile-responsive, dark mode |
 | **LangGraph Agents** | ✅ Complete | Multi-agent system with 4 specialists, 30+ tools |
 | **REST API Layer** | ✅ Complete | 21 endpoints for complete automation |
 | **APScheduler Jobs** | ✅ Complete | 10 background jobs for maintenance & sync |
@@ -227,6 +231,11 @@ Task Agent: "I see you were discussing food. Groceries for salmon?"
 ai_assistant_local_stack/
 ├── unraid-templates/          # 8 container templates
 ├── migrations/                # 9 SQL migrations
+├── frontend/                  # 🆕 Custom WebUI (React + TypeScript)
+│   ├── src/                   # Source code (components, API, contexts)
+│   ├── Dockerfile             # Production build
+│   ├── nginx.conf             # Nginx SPA configuration
+│   └── README.md              # Frontend documentation
 ├── containers/
 │   ├── langgraph-agents/     # LangGraph multi-agent system (FastAPI + APScheduler)
 │   │   ├── routers/          # REST API endpoints (tasks, reminders, events, vault, memory, imports)
@@ -245,7 +254,9 @@ ai_assistant_local_stack/
 ├── archive/
 │   └── n8n-workflows/        # Archived n8n workflows (migrated to Python)
 ├── config/                    # Configuration templates
+├── docker-compose.yml         # Full stack deployment
 └── docs/                      # Additional documentation
+    ├── CUSTOM_WEBUI_PLAN.md   # Frontend implementation plan
     └── N8N_TO_PYTHON_MIGRATION_PLAN.md  # Complete migration documentation
 ```
 
