@@ -141,21 +141,33 @@ async def search_food_log(
 async def log_food_entry(
     user_id: str,
     food_name: str,
-    food_type: str,
-    rating: Optional[int] = None,
+    location: str,
+    preference: str,
+    restaurant_name: Optional[str] = None,
+    description: Optional[str] = None,
+    meal_type: Optional[str] = None,
+    ingredients: Optional[List[str]] = None,
+    tags: Optional[List[str]] = None,
+    calories: Optional[int] = None,
     notes: Optional[str] = None,
-    logged_at: Optional[str] = None
+    consumed_at: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Log a new food entry.
+    Log a new food entry with the updated schema.
 
     Args:
-        user_id: User identifier
+        user_id: User identifier (UUID string or 'anythingllm')
         food_name: Name/description of food
-        food_type: Type (breakfast, lunch, dinner, snack)
-        rating: Optional rating 1-5
+        location: Where food was eaten ('home' or 'outside')
+        preference: User preference ('liked', 'disliked', or 'favorite')
+        restaurant_name: Restaurant name (required if location='outside')
+        description: Optional description
+        meal_type: Optional meal type ('breakfast', 'lunch', 'dinner', 'snack')
+        ingredients: Optional list of ingredients
+        tags: Optional list of tags
+        calories: Optional calorie count
         notes: Optional notes
-        logged_at: Optional timestamp (ISO format), defaults to now
+        consumed_at: Optional timestamp (ISO format), defaults to now
 
     Returns:
         Created food entry
@@ -163,32 +175,64 @@ async def log_food_entry(
     Raises:
         ValueError: If input parameters are invalid
     """
-    # Validate inputs
-    validate_food_type(food_type)
-    validate_rating(rating)
+    # Normalize user_id (convert 'anythingllm' to default UUID)
+    if user_id == 'anythingllm' or not user_id:
+        user_id = '00000000-0000-0000-0000-000000000001'
+
+    # Validate and normalize inputs
+    location = location.lower() if location else 'home'
+    preference = preference.lower() if preference else 'liked'
+
+    if location not in ['home', 'outside']:
+        raise ValueError("location must be 'home' or 'outside'")
+
+    if preference not in ['liked', 'disliked', 'favorite']:
+        raise ValueError("preference must be 'liked', 'disliked', or 'favorite'")
+
+    if location == 'outside' and not restaurant_name:
+        raise ValueError("restaurant_name is required when location='outside'")
+
+    if meal_type and meal_type.lower() not in ['breakfast', 'lunch', 'dinner', 'snack']:
+        meal_type = None  # Ignore invalid meal types
+    elif meal_type:
+        meal_type = meal_type.lower()
 
     if not food_name or not food_name.strip():
         raise ValueError("food_name is required and cannot be empty")
 
     pool = await get_db_pool()
 
-    if not logged_at:
-        logged_at = datetime.utcnow().isoformat()
+    # Convert consumed_at string to datetime object
+    if consumed_at:
+        if isinstance(consumed_at, str):
+            from dateutil import parser
+            consumed_at_dt = parser.isoparse(consumed_at)
+        else:
+            consumed_at_dt = consumed_at
+    else:
+        consumed_at_dt = datetime.utcnow()
 
     query = """
-        INSERT INTO food_log (user_id, food_name, food_type, rating, notes, logged_at)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        RETURNING id, user_id, food_name, food_type, rating, notes, logged_at, created_at
+        INSERT INTO food_log (
+            user_id, food_name, location, preference, restaurant_name,
+            description, meal_type, ingredients, tags, calories, notes, consumed_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        RETURNING id, user_id, food_name, location, preference, restaurant_name,
+                  description, meal_type, ingredients, tags, calories, notes,
+                  consumed_at, created_at
     """
 
     try:
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
                 query,
-                user_id, food_name, food_type, rating, notes, logged_at
+                user_id, food_name, location, preference, restaurant_name,
+                description, meal_type, ingredients or [], tags or [],
+                calories, notes, consumed_at_dt
             )
             result = dict(row)
-            logger.info(f"Logged food entry: {food_name}")
+            logger.info(f"Logged food entry: {food_name} at {location}")
             return result
     except ValueError as e:
         logger.error(f"Validation error in log_food_entry: {e}")
@@ -433,10 +477,10 @@ async def create_task(
     Create a new task.
 
     Args:
-        user_id: User identifier
+        user_id: User identifier (UUID string or 'anythingllm')
         title: Task title
         description: Task description
-        priority: Priority level (low, medium, high)
+        priority: Priority level (low, medium, high, urgent) or integer (0-4)
         due_date: Due date (ISO format)
 
     Returns:
@@ -445,8 +489,34 @@ async def create_task(
     Raises:
         ValueError: If input parameters are invalid
     """
-    # Validate inputs
-    validate_priority(priority)
+    # Normalize user_id (convert 'anythingllm' to default UUID)
+    if user_id == 'anythingllm' or not user_id:
+        user_id = '00000000-0000-0000-0000-000000000001'
+
+    # Convert priority string to integer if needed
+    priority_map = {
+        'none': 0,
+        'low': 1,
+        'medium': 2,
+        'high': 3,
+        'urgent': 4
+    }
+
+    # Handle both string and integer priorities
+    if isinstance(priority, str):
+        priority_lower = priority.lower()
+        if priority_lower in priority_map:
+            priority_int = priority_map[priority_lower]
+        elif priority.isdigit():
+            priority_int = int(priority)
+        else:
+            # Default to medium if invalid
+            priority_int = 2
+    else:
+        priority_int = int(priority) if priority else 2
+
+    # Clamp priority to valid range (0-4)
+    priority_int = max(0, min(4, priority_int))
 
     if not title or not title.strip():
         raise ValueError("title is required and cannot be empty")
@@ -455,7 +525,7 @@ async def create_task(
 
     query = """
         INSERT INTO tasks (user_id, title, description, priority, due_date, status)
-        VALUES ($1, $2, $3, $4, $5, 'pending')
+        VALUES ($1, $2, $3, $4, $5, 'todo')
         RETURNING id, user_id, title, description, status, priority, due_date, created_at
     """
 
@@ -463,10 +533,10 @@ async def create_task(
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
                 query,
-                user_id, title, description, priority, due_date
+                user_id, title, description, priority_int, due_date
             )
             result = dict(row)
-            logger.info(f"Created task: {title}")
+            logger.info(f"Created task: {title} with priority {priority_int}")
             return result
     except ValueError as e:
         logger.error(f"Validation error in create_task: {e}")
@@ -701,7 +771,7 @@ async def create_event(
     Create a calendar event.
 
     Args:
-        user_id: User identifier
+        user_id: User identifier (UUID string or 'anythingllm')
         title: Event title
         start_time: Start time (ISO format)
         end_time: End time (ISO format)
@@ -714,6 +784,10 @@ async def create_event(
     Raises:
         ValueError: If input parameters are invalid
     """
+    # Normalize user_id (convert 'anythingllm' to default UUID)
+    if user_id == 'anythingllm' or not user_id:
+        user_id = '00000000-0000-0000-0000-000000000001'
+
     # Validate inputs
     if not title or not title.strip():
         raise ValueError("title is required and cannot be empty")

@@ -1,6 +1,6 @@
 /**
  * AnythingLLM Custom Skill: Log Food
- * Track daily food consumption with AI-powered recommendations
+ * Track daily food consumption using the LangGraph food agent (Python backend).
  *
  * Schema: food_name (required), location (required: home/outside), preference (required: liked/disliked/favorite)
  * Optional: restaurant_name (required if location=outside), description, meal_type, ingredients, tags, calories, notes
@@ -8,7 +8,7 @@
 
 module.exports.runtime = {
   name: "log-food",
-  description: "Log food you ate today. Required: food name, location (home/outside), preference (liked/disliked/favorite). If location is 'outside', restaurant name is required. Can handle multiple foods in one entry (e.g., 'pizza and pasta').",
+  description: "Log food you ate today via the LangGraph food agent (Python backend). Required: food name, location (home/outside), preference (liked/disliked/favorite). If location is 'outside', restaurant name is required. Can handle multiple foods in one entry (e.g., 'pizza and pasta').",
   inputs: {
     food_name: {
       type: "string",
@@ -66,7 +66,7 @@ module.exports.runtime = {
       required: false
     }
   },
-  handler: async function ({ food_name, location, preference, restaurant_name, description, meal_type, ingredients, tags, calories, notes, consumed_at }) {
+  handler: async function ({ food_name, location, preference, restaurant_name, description, meal_type, ingredients, tags, calories, notes, consumed_at, workspaceSlug = "default" }) {
     try {
       // Validate required fields
       if (!food_name || !location || !preference) {
@@ -101,64 +101,58 @@ module.exports.runtime = {
         };
       }
 
-      const N8N_WEBHOOK = process.env.N8N_WEBHOOK || "http://n8n-ai-stack:5678/webhook";
+      const API_URL = process.env.LANGGRAPH_API_URL || "http://langgraph-agents:8080";
+      const userId = process.env.USER_ID || "anythingllm";
+      const sessionId = `food-${workspaceSlug || "default"}`;
 
-      const response = await fetch(`${N8N_WEBHOOK}/log-food`, {
+      // Build a concise instruction for the food agent with structured details
+      const entry = {
+        food_name,
+        location: location.toLowerCase(),
+        preference: preference.toLowerCase(),
+        restaurant_name,
+        description,
+        meal_type: meal_type ? meal_type.toLowerCase() : null,
+        ingredients: ingredients || [],
+        tags: tags || [],
+        calories,
+        notes,
+        consumed_at
+      };
+
+      const response = await fetch(`${API_URL}/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          food_name,
-          location: location.toLowerCase(),
-          preference: preference.toLowerCase(),
-          restaurant_name,
-          description,
-          meal_type: meal_type ? meal_type.toLowerCase() : null,
-          ingredients: ingredients || [],
-          tags: tags || [],
-          calories,
-          notes,
-          consumed_at
+          message: `Log this food entry using the food tools. Keep the response short.\n${JSON.stringify(entry, null, 2)}`,
+          user_id: userId,
+          workspace: workspaceSlug || "default",
+          session_id: sessionId
         }),
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`n8n webhook failed: ${response.status} ${errorText}`);
+        throw new Error(`Food agent call failed: ${response.status} ${errorText}`);
       }
 
       const result = await response.json();
 
-      // Build response message
-      const prefEmoji = preference.toLowerCase() === 'favorite' ? '⭐' : preference.toLowerCase() === 'liked' ? '👍' : '👎';
-      const locEmoji = location.toLowerCase() === 'home' ? '🏠' : '🍽️';
-
-      let message = `✅ Logged "${food_name}" successfully! ${prefEmoji} ${locEmoji}`;
-
-      if (location.toLowerCase() === 'outside' && restaurant_name) {
-        message += `\n   Restaurant: ${restaurant_name}`;
-      }
-
-      message += '\n   This has been vectorized for future recommendations.';
-
       return {
         success: true,
-        message,
-        food_id: result.food_id,
-        details: {
-          location,
-          preference,
-          restaurant_name,
-          meal_type
-        }
+        message: result.response || "Logged your food entry.",
+        agent: result.agent,
+        session_id: result.session_id,
+        raw: result
       };
     } catch (error) {
       console.error("Error logging food:", error);
       return {
         success: false,
         error: error.message,
-        message: "❌ Failed to log food. Please check n8n workflow and database connection."
+        message: "❌ Failed to log food via LangGraph. Please check the langgraph-agents service."
       };
     }
   }

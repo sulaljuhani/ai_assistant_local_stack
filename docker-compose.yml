@@ -1,0 +1,68 @@
+services:
+  # ===========================================================================
+  # LangGraph Multi-Agent API
+  # ===========================================================================
+  langgraph-agents:
+    build:
+      context: ./containers/langgraph-agents
+      dockerfile: Dockerfile
+    container_name: langgraph-agents
+    restart: unless-stopped
+    environment:
+      # API Configuration
+      API_HOST: ${API_HOST:-0.0.0.0}
+      API_PORT: ${API_PORT:-8000}
+
+      # LLM Provider (OpenAI/DeepSeek)
+      LLM_PROVIDER: ${LLM_PROVIDER}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL}
+      OPENAI_MODEL: ${OPENAI_MODEL}
+
+      # Embeddings (Ollama)
+      OLLAMA_EMBED_URL: ${OLLAMA_EMBED_URL}
+      OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL}
+
+      # Database
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+      # Redis
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+
+      # Qdrant
+      QDRANT_HOST: ${QDRANT_HOST}
+      QDRANT_PORT: ${QDRANT_PORT}
+
+      # State Management
+      STATE_PRUNING_ENABLED: ${STATE_PRUNING_ENABLED:-true}
+      STATE_MAX_MESSAGES: ${STATE_MAX_MESSAGES:-20}
+      STATE_TTL_SECONDS: ${STATE_TTL_SECONDS:-86400}
+
+      # Other
+      DEFAULT_USER_ID: ${DEFAULT_USER_ID}
+      TZ: ${TZ:-UTC}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount source code for live updates
+      - ./containers/langgraph-agents:/app
+      - ./vault:/app/vault
+    networks:
+      - ai-stack-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  ai-stack-network:
+    external: true
+    name: ai-stack-network

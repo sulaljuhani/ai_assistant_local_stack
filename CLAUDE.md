@@ -527,9 +527,9 @@ docker exec langgraph-agents ps aux | grep python
 
 ## Important Notes for Future Instances
 
-### 1. n8n is Deprecated
+### 1. n8n Removed
 
-The `/archive/n8n-workflows/` directory contains **archived workflows** migrated to Python. Do NOT use n8n. All automation is now in REST endpoints and scheduled jobs.
+All remaining automation was migrated off n8n to native Python in 2025. The `/archive/n8n-workflows/` directory contains only **archived workflows**. Do NOT run n8n containers or rely on n8n webhooks; use the REST endpoints and scheduled jobs in the FastAPI/LangGraph stack instead.
 
 ### 2. 100% Local Operation
 

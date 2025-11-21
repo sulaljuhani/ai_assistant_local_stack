@@ -315,7 +315,9 @@ async def reembed_vault_file(
             file_ext = 'txt'  # Default to txt
 
         # Embed document (vault files go to 'vault' collection)
-        result = await embed_document(
+        embed_fn = getattr(embed_document, "coroutine", None) or getattr(embed_document, "func", None) or embed_document
+
+        result = await embed_fn(
             file_path=file_path,
             file_type=file_ext,
             collection_name="vault",
@@ -325,24 +327,27 @@ async def reembed_vault_file(
             }
         )
 
-        # Store file record in database
+        # Store file record in database (best effort)
         if result.get("success"):
-            pool = await get_db_pool()
-            async with pool.acquire() as conn:
-                await conn.execute(
-                    """
-                    INSERT INTO vault_files (file_path, file_hash, last_embedded, chunk_count)
-                    VALUES ($1, $2, NOW(), $3)
-                    ON CONFLICT (file_path)
-                    DO UPDATE SET
-                        file_hash = EXCLUDED.file_hash,
-                        last_embedded = EXCLUDED.last_embedded,
-                        chunk_count = EXCLUDED.chunk_count
-                    """,
-                    file_path,
-                    current_hash,
-                    result.get("embedded_chunks", 0)
-                )
+            try:
+                pool = await get_db_pool()
+                async with pool.acquire() as conn:
+                    await conn.execute(
+                        """
+                        INSERT INTO vault_files (file_path, file_hash, last_embedded, chunk_count)
+                        VALUES ($1, $2, NOW(), $3)
+                        ON CONFLICT (file_path)
+                        DO UPDATE SET
+                            file_hash = EXCLUDED.file_hash,
+                            last_embedded = EXCLUDED.last_embedded,
+                            chunk_count = EXCLUDED.chunk_count
+                        """,
+                        file_path,
+                        current_hash,
+                        result.get("embedded_chunks", 0)
+                    )
+            except Exception:
+                logger.warning("vault_files table missing; skipping vault DB persistence")
 
         logger.info(f"Re-embedded vault file: {file_path}")
 

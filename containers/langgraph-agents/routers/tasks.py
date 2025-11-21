@@ -22,13 +22,14 @@ from utils.db import get_db_pool
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
+DEFAULT_USER_ID = "00000000-0000-0000-0000-000000000001"
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
 
 # Response models
 class TaskResponse(BaseModel):
     """Task response model"""
-    id: int
+    id: str
     title: str
     description: Optional[str]
     due_date: Optional[datetime]
@@ -98,9 +99,12 @@ async def create_task(request: CreateTaskRequest):
                 category_id = category_row['id']
 
             # Insert task
+            due_date = request.due_date.replace(tzinfo=None) if request.due_date else None
+
             task = await conn.fetchrow(
                 """
                 INSERT INTO tasks (
+                    user_id,
                     title,
                     description,
                     due_date,
@@ -109,18 +113,19 @@ async def create_task(request: CreateTaskRequest):
                     category_id,
                     tags,
                     is_recurring,
-                    recurrence_pattern,
+                    recurrence_rule,
                     created_at,
                     updated_at
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
                 RETURNING
                     id, title, description, due_date, priority, status,
-                    tags, is_recurring, recurrence_pattern,
+                    tags, is_recurring, recurrence_rule,
                     created_at, updated_at, completed_at
                 """,
+                DEFAULT_USER_ID,
                 request.title,
                 request.description,
-                request.due_date,
+                due_date,
                 request.priority.value,
                 request.status.value,
                 category_id,
@@ -132,7 +137,7 @@ async def create_task(request: CreateTaskRequest):
             logger.info(f"Created task: {task['id']} - {task['title']}")
 
             return TaskResponse(
-                id=task['id'],
+                id=str(task['id']),
                 title=task['title'],
                 description=task['description'],
                 due_date=task['due_date'],
@@ -141,7 +146,7 @@ async def create_task(request: CreateTaskRequest):
                 category=request.category,
                 tags=task['tags'] or [],
                 is_recurring=task['is_recurring'],
-                recurrence_pattern=task['recurrence_pattern'],
+                recurrence_pattern=task['recurrence_rule'],
                 created_at=task['created_at'],
                 updated_at=task['updated_at'],
                 completed_at=task['completed_at']
@@ -219,7 +224,7 @@ async def list_tasks(
             query = f"""
                 SELECT
                     t.id, t.title, t.description, t.due_date, t.priority, t.status,
-                    t.tags, t.is_recurring, t.recurrence_pattern,
+                    t.tags, t.is_recurring, t.recurrence_rule,
                     t.created_at, t.updated_at, t.completed_at,
                     c.name as category
                 FROM tasks t
@@ -233,7 +238,7 @@ async def list_tasks(
 
             tasks = [
                 TaskResponse(
-                    id=row['id'],
+                    id=str(row['id']),
                     title=row['title'],
                     description=row['description'],
                     due_date=row['due_date'],
@@ -242,7 +247,7 @@ async def list_tasks(
                     category=row['category'],
                     tags=row['tags'] or [],
                     is_recurring=row['is_recurring'],
-                    recurrence_pattern=row['recurrence_pattern'],
+                    recurrence_pattern=row['recurrence_rule'],
                     created_at=row['created_at'],
                     updated_at=row['updated_at'],
                     completed_at=row['completed_at']
@@ -263,7 +268,7 @@ async def list_tasks(
 
 
 @router.get("/{task_id}", response_model=TaskResponse)
-async def get_task(task_id: int):
+async def get_task(task_id: str):
     """Get a specific task by ID."""
     try:
         pool = await get_db_pool()
@@ -273,7 +278,7 @@ async def get_task(task_id: int):
                 """
                 SELECT
                     t.id, t.title, t.description, t.due_date, t.priority, t.status,
-                    t.tags, t.is_recurring, t.recurrence_pattern,
+                    t.tags, t.is_recurring, t.recurrence_rule,
                     t.created_at, t.updated_at, t.completed_at,
                     c.name as category
                 FROM tasks t
@@ -287,7 +292,7 @@ async def get_task(task_id: int):
                 raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
 
             return TaskResponse(
-                id=row['id'],
+                id=str(row['id']),
                 title=row['title'],
                 description=row['description'],
                 due_date=row['due_date'],
@@ -296,7 +301,7 @@ async def get_task(task_id: int):
                 category=row['category'],
                 tags=row['tags'] or [],
                 is_recurring=row['is_recurring'],
-                recurrence_pattern=row['recurrence_pattern'],
+                recurrence_pattern=row['recurrence_rule'],
                 created_at=row['created_at'],
                 updated_at=row['updated_at'],
                 completed_at=row['completed_at']
@@ -314,7 +319,7 @@ async def get_task(task_id: int):
 # ============================================================================
 
 @router.put("/{task_id}", response_model=TaskResponse)
-async def update_task(task_id: int, request: UpdateTaskRequest):
+async def update_task(task_id: str, request: UpdateTaskRequest):
     """
     Update an existing task.
 
@@ -374,7 +379,7 @@ async def update_task(task_id: int, request: UpdateTaskRequest):
                 param_count += 1
 
             if request.recurrence_pattern is not None:
-                update_fields.append(f"recurrence_pattern = ${param_count}")
+                update_fields.append(f"recurrence_rule = ${param_count}")
                 params.append(request.recurrence_pattern.value)
                 param_count += 1
 
@@ -413,7 +418,7 @@ async def update_task(task_id: int, request: UpdateTaskRequest):
                 WHERE id = ${param_count}
                 RETURNING
                     id, title, description, due_date, priority, status,
-                    tags, is_recurring, recurrence_pattern,
+                    tags, is_recurring, recurrence_rule AS recurrence_pattern,
                     created_at, updated_at, completed_at
             """
 
@@ -432,7 +437,7 @@ async def update_task(task_id: int, request: UpdateTaskRequest):
             logger.info(f"Updated task: {task['id']} - {task['title']}")
 
             return TaskResponse(
-                id=task['id'],
+                id=str(task['id']),
                 title=task['title'],
                 description=task['description'],
                 due_date=task['due_date'],
@@ -459,7 +464,7 @@ async def update_task(task_id: int, request: UpdateTaskRequest):
 # ============================================================================
 
 @router.delete("/{task_id}")
-async def delete_task(task_id: int):
+async def delete_task(task_id: str):
     """Delete a task."""
     try:
         pool = await get_db_pool()

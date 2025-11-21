@@ -33,12 +33,18 @@ START → Routing Node → Agent Node → Decision → (Routing or END)
 ```
 
 **State Schema** (`MultiAgentState`):
-- `messages`: Conversation history (with pruning)
+- `messages`: Conversation history (with `add_messages` reducer for automatic appending)
 - `current_agent`: Active agent
 - `user_id`, `workspace`, `session_id`: User context
-- `food_context`, `task_context`, `event_context`: Domain contexts
+- `agent_contexts`: Consolidated domain contexts ({"food": {...}, "task": {...}, "event": {...}})
 - `target_agent`, `handoff_reason`: Handoff metadata
 - `turn_count`, timestamps: Tracking info
+
+**Recent Improvements** (following LangGraph tutorial best practices):
+- Module-level agent caching (agents created once, reused forever)
+- Context injection via messages (not template variables)
+- Simplified state structure with consolidated contexts
+- Uses `add_messages` reducer for automatic message handling
 
 **State Pruning**:
 - Keeps first message (context)
@@ -80,15 +86,28 @@ Each agent is a specialized LangGraph node that:
 5. Updates domain context
 6. Returns updated state
 
-**Agent Structure**:
+**Agent Structure** (refactored for performance):
 ```python
+# Module-level caching (created once, reused forever)
+_agent_instance = None
+
+def _get_agent():
+    global _agent_instance
+    if _agent_instance is None:
+        _agent_instance = create_cached_react_agent(...)
+    return _agent_instance
+
 async def agent_node(state: MultiAgentState) -> Dict[str, Any]:
-    # 1. Load system prompt
-    # 2. Create ReAct agent with tools
-    # 3. Inject context from state
+    # 1. Get cached agent (no recreation!)
+    agent = _get_agent()
+    # 2. Create context message with system prompt
+    context_msg = create_context_message(state, "agent_name", PROMPT)
+    # 3. Prepend context to messages
+    messages = [context_msg] + state["messages"]
     # 4. Execute agent
+    result = await agent.ainvoke({"messages": messages})
     # 5. Detect handoff
-    # 6. Update context
+    # 6. Update agent context
     # 7. Return state updates
 ```
 

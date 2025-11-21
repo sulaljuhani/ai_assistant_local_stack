@@ -15,18 +15,20 @@ from middleware.validation import (
     UpdateReminderRequest,
     SuccessResponse,
     ReminderPriority,
+    RecurrencePattern,
 )
 from utils.db import get_db_pool
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
+DEFAULT_USER_ID = "00000000-0000-0000-0000-000000000001"
 router = APIRouter(prefix="/api/reminders", tags=["reminders"])
 
 
 # Response models
 class ReminderResponse(BaseModel):
     """Reminder response model"""
-    id: int
+    id: str
     title: str
     description: Optional[str]
     remind_at: datetime
@@ -94,43 +96,52 @@ async def create_reminder(request: CreateReminderRequest):
                 category_id = category_row['id']
 
             # Insert reminder
+            remind_at = request.remind_at.replace(tzinfo=None) if request.remind_at.tzinfo else request.remind_at
+
+            is_recurring = request.recurrence != RecurrencePattern.NONE
+            recurrence_rule = request.recurrence.value if request.recurrence != RecurrencePattern.NONE else None
+
             reminder = await conn.fetchrow(
                 """
                 INSERT INTO reminders (
+                    user_id,
                     title,
                     description,
                     remind_at,
                     priority,
                     category_id,
-                    recurrence,
-                    is_completed,
+                    is_recurring,
+                    recurrence_rule,
+                    status,
                     created_at,
                     updated_at
-                ) VALUES ($1, $2, $3, $4, $5, $6, FALSE, NOW(), NOW())
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', NOW(), NOW())
                 RETURNING
                     id, title, description, remind_at, priority,
-                    recurrence, is_completed, completed_at,
+                    is_recurring, recurrence_rule, status, completed_at,
                     created_at, updated_at
                 """,
+                DEFAULT_USER_ID,
                 request.title,
                 request.description,
-                request.remind_at,
+                remind_at,
                 request.priority.value,
                 category_id,
-                request.recurrence.value
+                is_recurring,
+                recurrence_rule
             )
 
             logger.info(f"Created reminder: {reminder['id']} - {reminder['title']} at {reminder['remind_at']}")
 
             return ReminderResponse(
-                id=reminder['id'],
+                id=str(reminder['id']),
                 title=reminder['title'],
                 description=reminder['description'],
                 remind_at=reminder['remind_at'],
                 priority=reminder['priority'],
                 category=request.category,
-                recurrence=reminder['recurrence'],
-                is_completed=reminder['is_completed'],
+                recurrence=reminder['recurrence_rule'] or RecurrencePattern.NONE,
+                is_completed=reminder['status'] == 'completed',
                 completed_at=reminder['completed_at'],
                 created_at=reminder['created_at'],
                 updated_at=reminder['updated_at']
@@ -201,7 +212,7 @@ async def list_reminders(
             query = f"""
                 SELECT
                     r.id, r.title, r.description, r.remind_at, r.priority,
-                    r.recurrence, r.is_completed, r.completed_at,
+                    r.recurrence_rule, r.status, r.completed_at,
                     r.created_at, r.updated_at,
                     c.name as category
                 FROM reminders r
@@ -215,14 +226,14 @@ async def list_reminders(
 
             reminders = [
                 ReminderResponse(
-                    id=row['id'],
+                    id=str(row['id']),
                     title=row['title'],
                     description=row['description'],
                     remind_at=row['remind_at'],
                     priority=row['priority'],
                     category=row['category'],
-                    recurrence=row['recurrence'],
-                    is_completed=row['is_completed'],
+                    recurrence=row['recurrence_rule'] or "none",
+                    is_completed=row['status'] == 'completed',
                     completed_at=row['completed_at'],
                     created_at=row['created_at'],
                     updated_at=row['updated_at']
@@ -253,27 +264,27 @@ async def get_reminders_today():
                 """
                 SELECT
                     r.id, r.title, r.description, r.remind_at, r.priority,
-                    r.recurrence, r.is_completed, r.completed_at,
+                    r.recurrence_rule, r.status, r.completed_at,
                     r.created_at, r.updated_at,
                     c.name as category
                 FROM reminders r
                 LEFT JOIN categories c ON r.category_id = c.id
                 WHERE DATE(r.remind_at) = CURRENT_DATE
-                  AND r.is_completed = FALSE
+                  AND r.status <> 'completed'
                 ORDER BY r.remind_at ASC
                 """
             )
 
             reminders = [
                 ReminderResponse(
-                    id=row['id'],
+                    id=str(row['id']),
                     title=row['title'],
                     description=row['description'],
                     remind_at=row['remind_at'],
                     priority=row['priority'],
                     category=row['category'],
-                    recurrence=row['recurrence'],
-                    is_completed=row['is_completed'],
+                    recurrence=row['recurrence_rule'] or "none",
+                    is_completed=row['status'] == 'completed',
                     completed_at=row['completed_at'],
                     created_at=row['created_at'],
                     updated_at=row['updated_at']
@@ -294,7 +305,7 @@ async def get_reminders_today():
 
 
 @router.get("/{reminder_id}", response_model=ReminderResponse)
-async def get_reminder(reminder_id: int):
+async def get_reminder(reminder_id: str):
     """Get a specific reminder by ID."""
     try:
         pool = await get_db_pool()
@@ -304,7 +315,7 @@ async def get_reminder(reminder_id: int):
                 """
                 SELECT
                     r.id, r.title, r.description, r.remind_at, r.priority,
-                    r.recurrence, r.is_completed, r.completed_at,
+                    r.recurrence_rule, r.status, r.completed_at,
                     r.created_at, r.updated_at,
                     c.name as category
                 FROM reminders r
@@ -318,14 +329,14 @@ async def get_reminder(reminder_id: int):
                 raise HTTPException(status_code=404, detail=f"Reminder {reminder_id} not found")
 
             return ReminderResponse(
-                id=row['id'],
+                id=str(row['id']),
                 title=row['title'],
                 description=row['description'],
                 remind_at=row['remind_at'],
                 priority=row['priority'],
                 category=row['category'],
-                recurrence=row['recurrence'],
-                is_completed=row['is_completed'],
+                recurrence=row['recurrence_rule'] or "none",
+                is_completed=row['status'] == 'completed',
                 completed_at=row['completed_at'],
                 created_at=row['created_at'],
                 updated_at=row['updated_at']
@@ -343,7 +354,7 @@ async def get_reminder(reminder_id: int):
 # ============================================================================
 
 @router.put("/{reminder_id}", response_model=ReminderResponse)
-async def update_reminder(reminder_id: int, request: UpdateReminderRequest):
+async def update_reminder(reminder_id: str, request: UpdateReminderRequest):
     """
     Update an existing reminder.
 
@@ -375,7 +386,8 @@ async def update_reminder(reminder_id: int, request: UpdateReminderRequest):
 
             if request.remind_at is not None:
                 update_fields.append(f"remind_at = ${param_count}")
-                params.append(request.remind_at)
+                remind_at = request.remind_at.replace(tzinfo=None) if request.remind_at and request.remind_at.tzinfo else request.remind_at
+                params.append(remind_at)
                 param_count += 1
 
             if request.priority is not None:
@@ -384,16 +396,14 @@ async def update_reminder(reminder_id: int, request: UpdateReminderRequest):
                 param_count += 1
 
             if request.recurrence is not None:
-                update_fields.append(f"recurrence = ${param_count}")
+                update_fields.append(f"recurrence_rule = ${param_count}")
                 params.append(request.recurrence.value)
                 param_count += 1
 
             if request.is_completed is not None:
-                update_fields.append(f"is_completed = ${param_count}")
-                params.append(request.is_completed)
+                update_fields.append(f"status = ${param_count}")
+                params.append("completed" if request.is_completed else "pending")
                 param_count += 1
-
-                # If marking as completed, set completed_at
                 if request.is_completed:
                     update_fields.append("completed_at = NOW()")
 
@@ -432,7 +442,7 @@ async def update_reminder(reminder_id: int, request: UpdateReminderRequest):
                 WHERE id = ${param_count}
                 RETURNING
                     id, title, description, remind_at, priority,
-                    recurrence, is_completed, completed_at,
+                    recurrence_rule, status, completed_at,
                     created_at, updated_at
             """
 
@@ -451,14 +461,14 @@ async def update_reminder(reminder_id: int, request: UpdateReminderRequest):
             logger.info(f"Updated reminder: {reminder['id']} - {reminder['title']}")
 
             return ReminderResponse(
-                id=reminder['id'],
+                id=str(reminder['id']),
                 title=reminder['title'],
                 description=reminder['description'],
                 remind_at=reminder['remind_at'],
                 priority=reminder['priority'],
                 category=category_name,
-                recurrence=reminder['recurrence'],
-                is_completed=reminder['is_completed'],
+                recurrence=reminder['recurrence_rule'] or "none",
+                is_completed=reminder['status'] == 'completed',
                 completed_at=reminder['completed_at'],
                 created_at=reminder['created_at'],
                 updated_at=reminder['updated_at']
@@ -476,7 +486,7 @@ async def update_reminder(reminder_id: int, request: UpdateReminderRequest):
 # ============================================================================
 
 @router.delete("/{reminder_id}")
-async def delete_reminder(reminder_id: int):
+async def delete_reminder(reminder_id: str):
     """Delete a reminder."""
     try:
         pool = await get_db_pool()

@@ -15,27 +15,42 @@ logger = get_logger(__name__)
 
 
 def create_routing_node():
-    """Create the routing node function."""
+    """
+    Create the classifier + router node.
+
+    Following LangGraph tutorial pattern but combined for efficiency.
+    This node performs both classification (determining message type)
+    and routing (selecting appropriate agent).
+
+    Tutorial equivalent:
+    - Tutorial: separate "classifier" + "router" nodes
+    - This system: combined into one "routing" node (more efficient for 3+ agents)
+    """
 
     async def routing_node(state: MultiAgentState) -> MultiAgentState:
         """
-        Route to appropriate agent based on user message.
+        Classify message type and route to appropriate agent.
 
-        Uses hybrid routing:
-        - Simple keyword matching for clear cases
-        - LLM routing for complex/ambiguous cases
+        Hybrid routing strategy (more sophisticated than tutorial):
+        1. Keyword classification (fast path) - O(1) lookup
+        2. LLM classification (fallback) - For ambiguous cases
+        3. Context-aware routing - Considers previous agent, handoff requests
+
+        Returns:
+            State update with routing decision
         """
-        logger.info("Routing node activated")
+        logger.info("Routing node: classifying and routing message")
 
-        # Prune state if needed
+        # Prune state if needed (prevent memory bloat)
         if should_prune_state(state):
-            logger.info("Pruning state messages")
+            logger.info("Pruning state messages to maintain context window")
             state["messages"] = prune_messages(state["messages"])
 
-        # Determine target agent
+        # Classify message type and determine target agent
+        # (Combined classifier + router logic in route_to_agent)
         target = await route_to_agent(state)
 
-        logger.info(f"Routed to: {target}")
+        logger.info(f"Classification complete → routed to: {target}")
 
         # Update state with routing decision
         return {
@@ -92,11 +107,24 @@ def create_workflow(checkpointer: BaseCheckpointSaver = None) -> StateGraph:
     """
     Create the LangGraph workflow for multi-agent system.
 
-    Workflow structure:
-    1. START → routing → agent
-    2. agent → decision (continue or end)
-    3. If continue → routing → agent (for handoffs)
-    4. If end → END
+    Workflow structure (enhanced from LangGraph tutorial):
+
+    START → routing (classifier+router) → [food_agent | task_agent | event_agent]
+                ↑                                        ↓
+                └────────────────── should_continue ────┘
+                                           ↓
+                                         END
+
+    Differences from tutorial:
+    - Tutorial: START → classifier → router → agent → END (linear)
+    - This: START → routing → agent → (loop or end) (supports handoffs)
+
+    Nodes:
+    1. START (implicit entry point)
+    2. routing - Combined classifier + router (more efficient than 2 nodes)
+    3. food_agent, task_agent, event_agent - Specialized agents
+    4. should_continue - Decision function (route for handoff, or end)
+    5. END (terminal state)
 
     Args:
         checkpointer: Optional checkpointer for state persistence
@@ -109,13 +137,13 @@ def create_workflow(checkpointer: BaseCheckpointSaver = None) -> StateGraph:
     # Create graph
     workflow = StateGraph(MultiAgentState)
 
-    # Add nodes
-    workflow.add_node("routing", create_routing_node())
-    workflow.add_node("food_agent", food_agent_node)
-    workflow.add_node("task_agent", task_agent_node)
-    workflow.add_node("event_agent", event_agent_node)
+    # Add nodes (following tutorial pattern with enhancements)
+    workflow.add_node("routing", create_routing_node())  # Classifier + Router combined
+    workflow.add_node("food_agent", food_agent_node)     # Specialist agent
+    workflow.add_node("task_agent", task_agent_node)     # Specialist agent
+    workflow.add_node("event_agent", event_agent_node)   # Specialist agent
 
-    # Set entry point
+    # Set entry point (like tutorial's START → first_node)
     workflow.set_entry_point("routing")
 
     # Add conditional edge from routing to specific agent

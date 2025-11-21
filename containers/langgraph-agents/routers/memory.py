@@ -90,16 +90,28 @@ async def store_chat_turn_endpoint(request: StoreChatTurnRequest):
         )
 
         # Call the memory tool
-        result = await store_chat_turn(
-            user_id=request.user_id,
-            role=request.role,
-            content=request.content,
-            conversation_id=request.conversation_id,
-            conversation_title=request.conversation_title,
-            source=request.source.value,
-            salience_score=request.salience_score,
-            metadata=request.metadata
-        )
+        if hasattr(store_chat_turn, "ainvoke"):
+            result = await store_chat_turn.ainvoke({
+                "user_id": request.user_id,
+                "role": request.role,
+                "content": request.content,
+                "conversation_id": request.conversation_id,
+                "conversation_title": request.conversation_title,
+                "source": request.source.value,
+                "salience_score": request.salience_score,
+                "metadata": request.metadata,
+            })
+        else:
+            result = await store_chat_turn(
+                user_id=request.user_id,
+                role=request.role,
+                content=request.content,
+                conversation_id=request.conversation_id,
+                conversation_title=request.conversation_title,
+                source=request.source.value,
+                salience_score=request.salience_score,
+                metadata=request.metadata
+            )
 
         if not result.get("success"):
             raise HTTPException(
@@ -156,15 +168,26 @@ async def search_memories_endpoint(request: SearchMemoriesRequest):
         logger.info(f"Search memories: query='{request.query[:50]}', limit={request.limit}")
 
         # Call the memory tool
-        result = await search_memories(
-            query=request.query,
-            user_id=request.user_id,
-            conversation_id=request.conversation_id,
-            sector=request.sector.value if request.sector else None,
-            limit=request.limit,
-            summarize=request.summarize,
-            min_salience=request.min_salience
-        )
+        if hasattr(search_memories, "ainvoke"):
+            result = await search_memories.ainvoke({
+                "query": request.query,
+                "user_id": request.user_id,
+                "conversation_id": request.conversation_id,
+                "sector": request.sector.value if request.sector else None,
+                "limit": request.limit,
+                "summarize": request.summarize,
+                "min_salience": request.min_salience,
+            })
+        else:
+            result = await search_memories(
+                query=request.query,
+                user_id=request.user_id,
+                conversation_id=request.conversation_id,
+                sector=request.sector.value if request.sector else None,
+                limit=request.limit,
+                summarize=request.summarize,
+                min_salience=request.min_salience
+            )
 
         if not result.get("success"):
             raise HTTPException(

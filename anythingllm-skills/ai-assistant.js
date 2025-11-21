@@ -7,7 +7,7 @@
  * - Validates data before execution
  * - Makes smart suggestions
  * - Maintains conversation context
- * - Routes to appropriate tools (n8n webhooks, database)
+ * - Routes to appropriate tools (LangGraph tools / database)
  *
  * This skill replaces individual skills (create-task, log-food, etc.) with
  * a unified conversational interface. The agent layer provides:
@@ -164,17 +164,12 @@ module.exports.runtime = {
  * ARCHITECTURE
  * ============
  *
- * Before (Direct):
- *   AnythingLLM → create-task.js → n8n webhook → DB
- *                                    ↓
- *                          (No validation, no questions)
- *
- * After (Agent Layer):
+ * Flow:
  *   AnythingLLM → ai-assistant.js → Pydantic AI Agent
  *                                         ↓
  *                                   (Evaluates, clarifies)
  *                                         ↓
- *                                   Tools (n8n/DB)
+ *                                   Tools (LangGraph/DB)
  *                                         ↓
  *                                   PostgreSQL
  *

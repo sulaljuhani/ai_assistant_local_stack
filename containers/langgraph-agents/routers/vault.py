@@ -16,6 +16,10 @@ from utils.logging import get_logger
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/vault", tags=["vault"])
 
+def _resolve_tool(fn):
+    """Unwrap LangChain StructuredTool to its underlying coroutine/function."""
+    return getattr(fn, "coroutine", None) or getattr(fn, "func", None) or fn
+
 
 # Response models
 class ReembedResponse(BaseModel):
@@ -63,7 +67,9 @@ async def reembed_file(request: ReembedFileRequest):
         logger.info(f"Re-embed request for: {request.file_path}")
 
         # Call the document tool
-        result = await reembed_vault_file(
+        reembed_fn = _resolve_tool(reembed_vault_file)
+
+        result = await reembed_fn(
             file_path=request.file_path,
             file_hash=request.file_hash,
             force=request.force
@@ -146,9 +152,16 @@ async def get_vault_status():
 
         async with pool.acquire() as conn:
             # Get total files
-            total_files = await conn.fetchval(
-                "SELECT COUNT(*) FROM vault_files"
-            )
+            try:
+                total_files = await conn.fetchval("SELECT COUNT(*) FROM vault_files")
+            except Exception:
+                # If table doesn't exist yet, return empty status
+                logger.warning("vault_files table missing; returning empty status")
+                return {
+                    "total_files": 0,
+                    "total_chunks": 0,
+                    "recent_files": []
+                }
 
             # Get recently embedded files
             recent_files = await conn.fetch(

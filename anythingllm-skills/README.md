@@ -1,6 +1,6 @@
 # AI Stack - AnythingLLM Custom Skills
 
-This directory contains 6 custom JavaScript skills for AnythingLLM that enable the AI to interact with the AI Stack system via the Python FastAPI backend.
+This directory contains 9 custom JavaScript skills for AnythingLLM that enable the AI to interact with the AI Stack system via the Python FastAPI backend (LangGraph agents + FastAPI).
 
 ## 🎯 Purpose
 
@@ -9,6 +9,8 @@ These skills allow AnythingLLM to:
 - Store important information as memories
 - Search through stored memories and past conversations
 - Import chat history from other AI platforms (ChatGPT, Claude, Gemini)
+- Run a general-purpose assistant that asks clarifying questions and routes to the right tools
+- Log food and surface personalized food recommendations (LangGraph food agent)
 
 All skills call the LangGraph Agents REST API (Python FastAPI with APScheduler).
 
@@ -16,12 +18,15 @@ All skills call the LangGraph Agents REST API (Python FastAPI with APScheduler).
 
 | File | Skill Name | Description |
 |------|------------|-------------|
+| `ai-assistant.js` | ai-assistant | General-purpose Pydantic AI agent that routes and disambiguates requests |
 | `create-reminder.js` | create-reminder | Creates reminders with date/time |
 | `create-task.js` | create-task | Creates tasks with optional due dates |
 | `create-event.js` | create-event | Creates calendar events with start/end times |
 | `search-memory.js` | search-memory | Searches stored memories using vector similarity |
 | `store-memory.js` | store-memory | Stores important information as memories |
 | `import-chat-history.js` | import-chat-history | Imports chat exports from various platforms |
+| `log-food.js` | log-food | Logs food entries via LangGraph food agent |
+| `recommend-food.js` | recommend-food | Suggests foods you liked but haven't eaten recently (LangGraph food agent) |
 
 ## 🚀 Installation
 
@@ -60,7 +65,7 @@ docker restart anythingllm-ai-stack
 In AnythingLLM chat:
 1. Go to Workspace Settings
 2. Navigate to "Agent Skills"
-3. You should see all 6 custom skills listed
+3. You should see all 9 custom skills listed
 4. Enable the skills you want to use
 
 ## 📖 Usage Examples
@@ -200,6 +205,8 @@ Skills call these Python FastAPI endpoints:
 - `http://langgraph-agents:8080/api/import/chatgpt`
 - `http://langgraph-agents:8080/api/import/claude`
 - `http://langgraph-agents:8080/api/import/gemini`
+- `http://pydantic-agent:8000/chat` (ai-assistant.js)
+- `http://langgraph-agents:8080/chat` (multi-agent entrypoint, used by food skills)
 
 **API Documentation**: http://your-server:8080/docs (Swagger/OpenAPI)
 
@@ -215,6 +222,10 @@ LANGGRAPH_API_URL=http://langgraph-agents:8080
 
 # Optional - User ID for memory operations
 USER_ID=anythingllm  # Defaults to 'anythingllm' if not set
+
+# Optional - Pydantic agent (ai-assistant.js)
+PYDANTIC_AGENT_URL=http://pydantic-agent:8000/chat
+DEFAULT_USER_ID=00000000-0000-0000-0000-000000000001
 ```
 
 ### Skill Parameters
@@ -340,13 +351,13 @@ This is normal - the system detects duplicate imports via file hash to prevent r
 ### For Developers
 
 1. **Error handling**: All skills return `{ success: boolean, error?: string }`
-2. **Validation**: Validate parameters before sending to webhook
+2. **Validation**: Validate parameters before sending to API
 3. **Timeouts**: Consider adding timeout to fetch() calls
 4. **Logging**: Use console.log() for debugging (visible in AnythingLLM logs)
 
 ## ✨ Features
 
-✅ 6 complete custom skills
+✅ 9 custom skills (agent + 8 task-specific)
 ✅ Natural language interface for all AI Stack features
 ✅ Automatic memory classification (5 sectors)
 ✅ Vector search with similarity scores
@@ -369,4 +380,4 @@ This is normal - the system detects duplicate imports via file hash to prevent r
 
 **Enable your AI to remember, recall, and manage your digital life** 🧠✨
 
-> **Note**: These skills previously called n8n webhooks but have been migrated to call Python FastAPI endpoints for better performance, type safety, and maintainability.
+> **Note**: Food logging and recommendations use the LangGraph food agent via the main `/chat` endpoint (no n8n dependency).

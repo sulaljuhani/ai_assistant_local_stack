@@ -8,6 +8,9 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -91,6 +94,45 @@ app.add_middleware(
 # Add rate limiting
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+# Custom validation handler: 400 for transport/format issues, 422 for domain validation
+@app.exception_handler(RequestValidationError)
+async def custom_validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Classify validation failures into transport/format vs domain errors."""
+
+    def is_format_error(error: Dict[str, Any]) -> bool:
+        error_type = error.get("type", "")
+        location = error.get("loc") or []
+        location_scope = location[0] if location else None
+        transport_type_prefixes = (
+            "json_invalid",
+            "value_error.jsondecode",
+            "int_parsing",
+            "float_parsing",
+            "bool_parsing",
+            "url_parsing",
+            "bytes_parsing",
+            "string_parsing",
+        )
+
+        # Invalid JSON or body parsing issues
+        if error_type.startswith(transport_type_prefixes):
+            return True
+
+        # Path/query/header decoding issues (malformed UUIDs, type errors) are transport-level
+        if location_scope in {"path", "query", "header", "cookie"} and (
+            error_type.startswith(("type_error", "int_parsing", "float_parsing", "bool_parsing", "url_parsing"))
+            or "uuid" in error_type
+        ):
+            return True
+
+        return False
+
+    errors = exc.errors()
+    status_code = 400 if any(is_format_error(err) for err in errors) else 422
+
+    return JSONResponse(status_code=status_code, content={"detail": jsonable_encoder(errors)})
 
 # Include routers for task management (replaces n8n workflows 01, 02, 03)
 app.include_router(tasks_router)

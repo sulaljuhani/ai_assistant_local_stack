@@ -40,9 +40,9 @@ class Settings(BaseSettings):
     # Database
     postgres_host: str = "postgres"
     postgres_port: int = 5432
-    postgres_user: str = "postgres"
+    postgres_user: str = "aistack_user"
     postgres_password: str
-    postgres_db: str = "ai_assistant"
+    postgres_db: str = "aistack"
 
     # Redis
     redis_host: str = "redis"
@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     qdrant_host: str = "qdrant"
     qdrant_port: int = 6333
     qdrant_api_key: str | None = None
+    memory_collection_name: str = "memories"
 
     # State Management
     state_pruning_enabled: bool = True

@@ -17,6 +17,10 @@ from utils.logging import get_logger
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 
+def _resolve_tool(fn):
+    """Unwrap LangChain StructuredTool to its underlying coroutine/function."""
+    return getattr(fn, "coroutine", None) or getattr(fn, "func", None) or fn
+
 
 # Response models
 class EmbedResponse(BaseModel):
@@ -77,8 +81,10 @@ async def embed_document_endpoint(request: EmbedDocumentRequest):
     try:
         logger.info(f"Embed request for: {request.file_path} ({request.file_type})")
 
-        # Call the document tool
-        result = await embed_document(
+        # Call the document tool (unwrap LangChain StructuredTool if needed)
+        embed_fn = _resolve_tool(embed_document)
+
+        result = await embed_fn(
             file_path=request.file_path,
             file_type=request.file_type,
             collection_name=request.collection_name,
@@ -151,7 +157,9 @@ async def upload_and_embed(
         logger.info(f"Uploaded file saved to: {tmp_file_path}")
 
         # Embed document
-        result = await embed_document(
+        embed_fn = _resolve_tool(embed_document)
+
+        result = await embed_fn(
             file_path=tmp_file_path,
             file_type=file_ext,
             collection_name=collection_name,
@@ -220,7 +228,9 @@ async def search_documents(
         logger.info(f"Search request: '{query}' in {collection_name}")
 
         # Search using the document tool
-        results = await search_embedded_documents(
+        search_fn = _resolve_tool(search_embedded_documents)
+
+        results = await search_fn(
             query=query,
             collection_name=collection_name,
             limit=limit,

@@ -5,10 +5,10 @@ This directory contains testing scripts and utilities for the AI Assistant Local
 ## Quick Start
 
 ```bash
-# Run all webhook tests
+# Run all FastAPI endpoint tests
 ./tests/test-webhooks.sh
 
-# Run specific test
+# Run a specific test group
 ./tests/test-webhooks.sh reminder
 
 # Run with verbose output
@@ -17,19 +17,26 @@ VERBOSE=1 ./tests/test-webhooks.sh
 
 ## Available Tests
 
-### Webhook Tests (`test-webhooks.sh`)
+### FastAPI Endpoint Tests (`test-webhooks.sh`)
 
-Tests all webhook endpoints with valid and invalid data.
+Targets the native FastAPI/LangGraph APIs (no n8n). Health checks fail if services are not running.
 
 **Individual Tests:**
-- `reminder` - Create reminder webhook
-- `task` - Create task webhook
-- `event` - Create event webhook
-- `chat` - Store chat turn webhook
-- `search` - Search memories webhook
-- `food` - Food log webhook
-- `health` - System health checks
-- `all` - Run all tests (default)
+- `reminder` - `/api/reminders/create`
+- `task` - `/api/tasks/create`
+- `event` - `/api/events/create`
+- `chat` - `/api/memory/store`
+- `search` - `/api/memory/search`
+- `task-crud` - create/get/update/list/delete task
+- `reminder-crud` - create/get/update/list/delete reminder
+- `event-crud` - create/get/update/list/delete event
+- `memory-pipeline` - store + search + stats/conversations for OpenMemory
+- `documents` - document embed + semantic search (knowledge_base)
+- `vault` - vault re-embed + status
+- `imports` - Claude export import path
+- `validation` - transport vs domain validation (400 vs 422)
+- `health` - `/health` and `/api/tasks` (DB availability)
+- `all` - Run every test (default)
 
 **Usage:**
 ```bash
@@ -39,8 +46,8 @@ Tests all webhook endpoints with valid and invalid data.
 # Test all endpoints
 ./tests/test-webhooks.sh all
 
-# Use custom n8n URL
-N8N_URL=http://localhost:5678 ./tests/test-webhooks.sh
+# Use custom API URL (default http://localhost:8080)
+API_URL=http://localhost:8080 ./tests/test-webhooks.sh
 
 # Verbose mode (shows response bodies)
 VERBOSE=1 ./tests/test-webhooks.sh reminder
@@ -51,10 +58,10 @@ VERBOSE=1 ./tests/test-webhooks.sh reminder
 ========================================================================
 AI Stack Webhook Testing Suite
 ========================================================================
-n8n URL: http://localhost:5678
+API URL: http://localhost:8080
 Verbose: 0
 
-Testing: Create Reminder Webhook
+Testing: Create Reminder
 ------------------------------------------------------------------------
 ✓ PASS: Valid reminder creation (HTTP 200)
 ✓ PASS: Invalid reminder (missing title) (HTTP 400)
@@ -72,34 +79,23 @@ All tests passed!
 
 ## Test Coverage
 
-### Phase 3 Validation Tests
-
-Workflow 01 (Create Reminder) includes inline validation. The test suite verifies:
-
-- ✅ Valid inputs return 200 OK
-- ✅ Missing required fields return 400 Bad Request
-- ✅ Invalid enum values return 400 Bad Request
-- ✅ Field length constraints are enforced
-- ✅ Date/time parsing validates correctly
-
-### Integration Tests
-
-The test scripts verify end-to-end functionality:
-
-1. **Webhook accessibility** - n8n responds to HTTP requests
-2. **Data validation** - Invalid inputs are rejected
-3. **Database operations** - Records are created correctly
-4. **Error handling** - Errors return proper status codes
+- ✅ FastAPI routing and validation for core CRUD endpoints (tasks, reminders, events)
+- ✅ Memory storage/search endpoints with sample payloads
+- ✅ CRUD regression flows for tasks, reminders, events
+- ✅ OpenMemory pipeline touchpoints (store, search, stats, conversations)
+- ✅ Documents embed/search, vault re-embed/status, Claude import path
+- ✅ Validation split for transport/format (400) vs domain (422) errors
+- ✅ Health checks fail when FastAPI or backing services (e.g., Postgres) are unavailable
 
 ## Adding New Tests
 
-To add tests for a new webhook:
+To add tests for a new API endpoint:
 
 1. **Add test function** to `test-webhooks.sh`:
    ```bash
-   test_my_webhook() {
-       print_test "My Webhook"
-       test_endpoint "my-webhook" \
+   test_my_endpoint() {
+       print_test "My Endpoint"
+       test_endpoint "POST" "/api/my-endpoint" \
            '{"field": "value"}' \
            200 \
            "Valid request"
@@ -110,28 +106,28 @@ To add tests for a new webhook:
    ```bash
    case $TEST_NAME in
        # ...
-       "my-webhook")
-           test_my_webhook
+       "my-endpoint")
+           test_my_endpoint
            ;;
        "all")
            # ...
-           test_my_webhook
+           test_my_endpoint
            ;;
    esac
    ```
 
 3. **Run your test**:
    ```bash
-   ./tests/test-webhooks.sh my-webhook
+   ./tests/test-webhooks.sh my-endpoint
    ```
 
 ## Continuous Integration
 
-These tests can be integrated into CI/CD pipelines:
+These tests can be integrated into CI/CD pipelines once the FastAPI stack is running:
 
 ```yaml
 # Example GitHub Actions workflow
-- name: Run webhook tests
+- name: Run API tests
   run: |
     docker-compose up -d
     sleep 10  # Wait for services
@@ -143,58 +139,27 @@ These tests can be integrated into CI/CD pipelines:
 
 ## Troubleshooting
 
-### Tests fail with "Connection refused"
+### Tests fail with "connection error"
 
-**Problem**: n8n is not running or not accessible
-
-**Solution**:
-```bash
-# Check if n8n is running
-docker ps | grep n8n
-
-# Start n8n if needed
-docker-compose up -d n8n-ai-stack
-
-# Verify n8n is accessible
-curl http://localhost:5678
-```
-
-### Tests fail with 404 Not Found
-
-**Problem**: Webhook workflows are not active
-
-**Solution**:
-1. Open n8n UI: http://localhost:5678
-2. Check that workflows are activated (green toggle)
-3. Verify webhook paths match test script
-
-### Tests timeout
-
-**Problem**: Services are starting up or overloaded
+**Problem**: FastAPI is not running or not accessible on `API_URL`.
 
 **Solution**:
 ```bash
-# Wait longer for services to start
-sleep 30
-
-# Check service health
-docker-compose ps
-docker-compose logs n8n-ai-stack
+curl http://localhost:8080/health
+docker ps | grep langgraph-agents
 ```
 
-## Future Enhancements
+### Tests return 500 errors for CRUD endpoints
 
-Potential additions to the testing infrastructure:
+**Problem**: Backing services (Postgres/Redis/Qdrant) are not available.
 
-1. **Unit tests** for validation logic
-2. **Performance tests** for vector search
-3. **Load tests** for concurrent requests
-4. **Database state verification** after operations
-5. **Rollback tests** for error scenarios
-6. **End-to-end tests** with real AI models
+**Solution**: Start required containers and rerun migrations:
+```bash
+docker ps
+cd migrations && ./run-migrations.sh
+```
 
 ## Related Documentation
 
-- [Phase 3 Implementation](../docs/PHASE_3_IMPLEMENTATION.md) - Validation patterns
-- [API Documentation](../docs/API_DOCUMENTATION.md) - Webhook specifications
+- [API Documentation](../docs/API_DOCUMENTATION.md) - Endpoint specifications
 - [Troubleshooting Guide](../docs/TROUBLESHOOTING.md) - Common issues

@@ -22,6 +22,10 @@ from utils.logging import get_logger
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/import", tags=["imports"])
 
+def _resolve_tool(fn):
+    """Unwrap LangChain StructuredTool to its underlying coroutine/function."""
+    return getattr(fn, "coroutine", None) or getattr(fn, "func", None) or fn
+
 
 # Response models
 class ImportResponse(BaseModel):
@@ -114,7 +118,9 @@ async def import_claude_export(
                         role = "user" if sender == "human" else "assistant"
 
                         # Store chat turn
-                        result = await store_chat_turn(
+                        store_fn = _resolve_tool(store_chat_turn)
+
+                        result = await store_fn(
                             user_id=user_id,
                             role=role,
                             content=msg.get("text", ""),

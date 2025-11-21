@@ -9,6 +9,7 @@ from typing import Optional, List
 from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
+import json
 
 from middleware.validation import (
     CreateEventRequest,
@@ -19,13 +20,14 @@ from utils.db import get_db_pool
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
+DEFAULT_USER_ID = "00000000-0000-0000-0000-000000000001"
 router = APIRouter(prefix="/api/events", tags=["events"])
 
 
 # Response models
 class EventResponse(BaseModel):
     """Event response model"""
-    id: int
+    id: str
     title: str
     description: Optional[str]
     start_time: datetime
@@ -107,9 +109,15 @@ async def create_event(request: CreateEventRequest):
             #     logger.warning(f"Event conflicts detected: {[c['title'] for c in conflicts]}")
 
             # Insert event
+            start_time = request.start_time.replace(tzinfo=None) if request.start_time.tzinfo else request.start_time
+            end_time = request.end_time.replace(tzinfo=None) if request.end_time and request.end_time.tzinfo else request.end_time
+
+            attendees_json = json.dumps(request.attendees or [])
+
             event = await conn.fetchrow(
                 """
                 INSERT INTO events (
+                    user_id,
                     title,
                     description,
                     start_time,
@@ -120,32 +128,33 @@ async def create_event(request: CreateEventRequest):
                     is_all_day,
                     created_at,
                     updated_at
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
                 RETURNING
                     id, title, description, start_time, end_time, location,
                     attendees, is_all_day, created_at, updated_at
                 """,
+                DEFAULT_USER_ID,
                 request.title,
                 request.description,
-                request.start_time,
-                request.end_time,
+                start_time,
+                end_time,
                 request.location,
                 category_id,
-                request.attendees,
+                attendees_json,
                 request.is_all_day
             )
 
             logger.info(f"Created event: {event['id']} - {event['title']} at {event['start_time']}")
 
             return EventResponse(
-                id=event['id'],
+                id=str(event['id']),
                 title=event['title'],
                 description=event['description'],
                 start_time=event['start_time'],
                 end_time=event['end_time'],
                 location=event['location'],
                 category=request.category,
-                attendees=event['attendees'] or [],
+                attendees=json.loads(event['attendees']) if isinstance(event['attendees'], str) else (event['attendees'] or []),
                 is_all_day=event['is_all_day'],
                 created_at=event['created_at'],
                 updated_at=event['updated_at']
@@ -237,14 +246,14 @@ async def list_events(
 
             events = [
                 EventResponse(
-                    id=row['id'],
+                    id=str(row['id']),
                     title=row['title'],
                     description=row['description'],
                     start_time=row['start_time'],
                     end_time=row['end_time'],
                     location=row['location'],
                     category=row['category'],
-                    attendees=row['attendees'] or [],
+                    attendees=json.loads(row['attendees']) if isinstance(row['attendees'], str) else (row['attendees'] or []),
                     is_all_day=row['is_all_day'],
                     created_at=row['created_at'],
                     updated_at=row['updated_at']
@@ -287,14 +296,14 @@ async def get_events_today():
 
             events = [
                 EventResponse(
-                    id=row['id'],
+                    id=str(row['id']),
                     title=row['title'],
                     description=row['description'],
                     start_time=row['start_time'],
                     end_time=row['end_time'],
                     location=row['location'],
                     category=row['category'],
-                    attendees=row['attendees'] or [],
+                    attendees=json.loads(row['attendees']) if isinstance(row['attendees'], str) else (row['attendees'] or []),
                     is_all_day=row['is_all_day'],
                     created_at=row['created_at'],
                     updated_at=row['updated_at']
@@ -341,14 +350,14 @@ async def get_events_week():
 
             events = [
                 EventResponse(
-                    id=row['id'],
+                    id=str(row['id']),
                     title=row['title'],
                     description=row['description'],
                     start_time=row['start_time'],
                     end_time=row['end_time'],
                     location=row['location'],
                     category=row['category'],
-                    attendees=row['attendees'] or [],
+                    attendees=json.loads(row['attendees']) if isinstance(row['attendees'], str) else (row['attendees'] or []),
                     is_all_day=row['is_all_day'],
                     created_at=row['created_at'],
                     updated_at=row['updated_at']
@@ -369,7 +378,7 @@ async def get_events_week():
 
 
 @router.get("/{event_id}", response_model=EventResponse)
-async def get_event(event_id: int):
+async def get_event(event_id: str):
     """Get a specific event by ID."""
     try:
         pool = await get_db_pool()
@@ -393,14 +402,14 @@ async def get_event(event_id: int):
                 raise HTTPException(status_code=404, detail=f"Event {event_id} not found")
 
             return EventResponse(
-                id=row['id'],
+                id=str(row['id']),
                 title=row['title'],
                 description=row['description'],
                 start_time=row['start_time'],
                 end_time=row['end_time'],
                 location=row['location'],
                 category=row['category'],
-                attendees=row['attendees'] or [],
+                attendees=json.loads(row['attendees']) if isinstance(row['attendees'], str) else (row['attendees'] or []),
                 is_all_day=row['is_all_day'],
                 created_at=row['created_at'],
                 updated_at=row['updated_at']
@@ -418,7 +427,7 @@ async def get_event(event_id: int):
 # ============================================================================
 
 @router.put("/{event_id}", response_model=EventResponse)
-async def update_event(event_id: int, request: UpdateEventRequest):
+async def update_event(event_id: str, request: UpdateEventRequest):
     """
     Update an existing event.
 
@@ -465,7 +474,7 @@ async def update_event(event_id: int, request: UpdateEventRequest):
 
             if request.attendees is not None:
                 update_fields.append(f"attendees = ${param_count}")
-                params.append(request.attendees)
+                params.append(json.dumps(request.attendees))
                 param_count += 1
 
             if request.is_all_day is not None:
@@ -526,14 +535,14 @@ async def update_event(event_id: int, request: UpdateEventRequest):
             logger.info(f"Updated event: {event['id']} - {event['title']}")
 
             return EventResponse(
-                id=event['id'],
+                id=str(event['id']),
                 title=event['title'],
                 description=event['description'],
                 start_time=event['start_time'],
                 end_time=event['end_time'],
                 location=event['location'],
                 category=category_name,
-                attendees=event['attendees'] or [],
+                attendees=json.loads(event['attendees']) if isinstance(event['attendees'], str) else (event['attendees'] or []),
                 is_all_day=event['is_all_day'],
                 created_at=event['created_at'],
                 updated_at=event['updated_at']
@@ -551,7 +560,7 @@ async def update_event(event_id: int, request: UpdateEventRequest):
 # ============================================================================
 
 @router.delete("/{event_id}")
-async def delete_event(event_id: int):
+async def delete_event(event_id: str):
     """Delete an event."""
     try:
         pool = await get_db_pool()

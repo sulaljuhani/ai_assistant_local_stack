@@ -16,9 +16,14 @@ class MultiAgentState(TypedDict):
     Shared state across all agents with domain-specific contexts.
 
     This state is persisted in Redis and passed between agents during handoffs.
+
+    Key improvements:
+    - Uses add_messages reducer for automatic message handling
+    - Consolidated agent_contexts dict (simpler than separate dicts)
+    - Minimal state fields (following LangGraph best practices)
     """
 
-    # Conversation history (with automatic message reduction)
+    # Conversation history (with automatic message appending via add_messages)
     messages: Annotated[Sequence[BaseMessage], add_messages]
 
     # Active agent tracking
@@ -30,19 +35,12 @@ class MultiAgentState(TypedDict):
     workspace: str
     session_id: str
 
-    # Domain-specific contexts (each agent populates its own)
-    food_context: dict
-    task_context: dict
-    event_context: dict
-    memory_context: dict
+    # Domain-specific contexts (consolidated - each agent updates its own key)
+    agent_contexts: dict  # {"food": {...}, "task": {...}, "event": {...}, "memory": {...}}
 
     # Handoff metadata
     handoff_reason: Optional[str]
     target_agent: Optional[str]
-
-    # Action tracking
-    pending_actions: list
-    completed_actions: list
 
     # Metadata
     turn_count: int
@@ -118,14 +116,9 @@ def create_initial_state(
         user_id=user_id,
         workspace=workspace,
         session_id=session_id,
-        food_context={},
-        task_context={},
-        event_context={},
-        memory_context={},
+        agent_contexts={},  # Consolidated contexts
         handoff_reason=None,
         target_agent=None,
-        pending_actions=[],
-        completed_actions=[],
         turn_count=0,
         created_at=now,
         updated_at=now,

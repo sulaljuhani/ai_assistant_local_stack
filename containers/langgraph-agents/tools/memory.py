@@ -8,16 +8,19 @@ Replaces functionality from n8n workflows:
 - 10-search-and-summarize.json (search memories with optional summarization)
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Callable, TypeVar
 from datetime import datetime
 import uuid
+import asyncio
 
 from langchain_core.tools import tool
+import json
 from utils.db import get_db_pool
 from utils.logging import get_logger
 from config import settings
 
 logger = get_logger(__name__)
+T = TypeVar("T")
 
 
 # ============================================================================
@@ -78,6 +81,39 @@ def classify_memory_sectors(content: str, role: str) -> List[str]:
             sectors.append('semantic')  # Assistant messages often provide information
 
     return sectors
+
+
+async def _with_qdrant_retry(operation: str, func: Callable[[], T], retries: int = 2, base_delay: float = 0.5) -> T:
+    """
+    Execute a Qdrant operation with simple retry/backoff.
+
+    Args:
+        operation: Name of the operation for logging
+        func: Callable to execute
+        retries: Number of retries on failure
+        base_delay: Initial delay between retries
+
+    Returns:
+        Result of the callable if successful
+
+    Raises:
+        Last exception if all attempts fail
+    """
+    last_exception: Optional[Exception] = None
+
+    for attempt in range(retries + 1):
+        try:
+            return func()
+        except Exception as exc:  # noqa: PERF203
+            last_exception = exc
+            logger.warning(
+                f"Qdrant {operation} failed (attempt {attempt + 1}/{retries + 1}): {exc}"
+            )
+            if attempt < retries:
+                await asyncio.sleep(base_delay * (2**attempt))
+
+    logger.error(f"Qdrant {operation} failed after {retries + 1} attempts", exc_info=True)
+    raise last_exception  # type: ignore[misc]
 
 
 async def generate_memory_embedding(text: str) -> Optional[List[float]]:
@@ -143,20 +179,28 @@ async def store_memory_vector(
         from qdrant_client.models import PointStruct, Distance, VectorParams
 
         client = QdrantClient(host=settings.qdrant_host, port=settings.qdrant_port)
+        collection_name = settings.memory_collection_name
 
         # Ensure memories collection exists
-        collections = client.get_collections().collections
-        if not any(col.name == "memories" for col in collections):
-            client.create_collection(
-                collection_name="memories",
-                vectors_config=VectorParams(size=len(vector), distance=Distance.COSINE)
+        collections = await _with_qdrant_retry(
+            "list collections",
+            lambda: client.get_collections().collections
+        )
+
+        if not any(col.name == collection_name for col in collections):
+            await _with_qdrant_retry(
+                "create collection",
+                lambda: client.create_collection(
+                    collection_name=collection_name,
+                    vectors_config=VectorParams(size=len(vector), distance=Distance.COSINE)
+                )
             )
-            logger.info("Created Qdrant collection: memories")
+            logger.info("Created Qdrant collection: %s", collection_name)
 
         # Create one point per sector for flexible retrieval
         points = []
-        for sector in sectors:
-            point_id = f"{memory_id}_{sector}"
+        for idx, sector in enumerate(sectors, start=1):
+            point_id = memory_id * 10 + idx
             payload = {
                 "memory_id": memory_id,
                 "sector": sector,
@@ -166,7 +210,7 @@ async def store_memory_vector(
             points.append(PointStruct(id=point_id, vector=vector, payload=payload))
 
         # Upsert all points
-        client.upsert(collection_name="memories", points=points)
+        await _with_qdrant_retry("upsert memory vectors", lambda: client.upsert(collection_name=collection_name, points=points))
 
         return True
 
@@ -267,7 +311,7 @@ async def store_chat_turn(
                 content,
                 salience_score,
                 source,
-                metadata or {}
+                json.dumps(metadata or {})
             )
 
             memory_id = memory['id']
@@ -384,9 +428,11 @@ async def search_memories(
 
         # 2. Search Qdrant
         from qdrant_client import QdrantClient
-        from qdrant_client.models import Filter, FieldCondition, MatchValue
+        from qdrant_client.http.exceptions import UnexpectedResponse
+        from qdrant_client.models import Filter, FieldCondition, MatchValue, VectorParams, Distance
 
         client = QdrantClient(host=settings.qdrant_host, port=settings.qdrant_port)
+        collection_name = settings.memory_collection_name
 
         # Build filter
         must_conditions = []
@@ -413,14 +459,61 @@ async def search_memories(
 
         search_filter = Filter(must=must_conditions) if must_conditions else None
 
-        # Search
-        search_results = client.search(
-            collection_name="memories",
-            query_vector=query_embedding,
-            query_filter=search_filter,
-            limit=limit,
-            score_threshold=0.5
-        )
+        def ensure_collection():
+            collections = client.get_collections().collections
+            if not any(col.name == collection_name for col in collections):
+                client.create_collection(
+                    collection_name=collection_name,
+                    vectors_config=VectorParams(size=len(query_embedding), distance=Distance.COSINE)
+                )
+
+        ensure_collection()
+
+        try:
+            search_results = await _with_qdrant_retry(
+                "vector search",
+                lambda: client.search(
+                    collection_name=collection_name,
+                    query_vector=query_embedding,
+                    query_filter=search_filter,
+                    limit=limit,
+                    score_threshold=0.5
+                )
+            )
+        except UnexpectedResponse as e:
+            if "doesn't exist" in str(e) or "OutputTooSmall" in str(e):
+                logger.warning("Recreating Qdrant collection %s after search error", collection_name)
+                client.recreate_collection(
+                    collection_name=collection_name,
+                    vectors_config=VectorParams(size=len(query_embedding), distance=Distance.COSINE)
+                )
+                search_results = client.search(
+                    collection_name=collection_name,
+                    query_vector=query_embedding,
+                    query_filter=search_filter,
+                    limit=limit,
+                    score_threshold=0.5
+                )
+            else:
+                logger.error(f"Qdrant search failed: {e}", exc_info=True)
+                return {
+                    "success": False,
+                    "error": f"Qdrant search failed: {e}",
+                    "query": query,
+                    "count": 0,
+                    "results": [],
+                    "summary": None
+                }
+        except Exception as e:
+            logger.error(f"Qdrant search failed: {e}", exc_info=True)
+            return {
+                "success": False,
+                "error": f"Qdrant search failed: {e}",
+                "query": query,
+                "count": 0,
+                "results": [],
+                "summary": None
+            }
 
         # Format results
         results = []

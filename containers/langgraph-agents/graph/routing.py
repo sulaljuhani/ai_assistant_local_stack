@@ -125,17 +125,60 @@ Which agent should handle this request? Provide your reasoning.""")
 
     llm = get_routing_llm()
 
-    # Use structured output
-    structured_llm = llm.with_structured_output(RoutingDecision)
-
     try:
-        decision = await structured_llm.ainvoke(
-            prompt.format_messages(
-                message=message,
-                previous_agent=context.get("previous_agent", "none"),
-                context=str(context)
+        # Try structured output if supported (OpenAI, Claude, etc.)
+        try:
+            structured_llm = llm.with_structured_output(RoutingDecision)
+            decision = await structured_llm.ainvoke(
+                prompt.format_messages(
+                    message=message,
+                    previous_agent=context.get("previous_agent", "none"),
+                    context=str(context)
+                )
             )
-        )
+        except NotImplementedError:
+            # Fallback for models without structured output (Ollama)
+            logger.debug("Structured output not supported, using text parsing")
+
+            # Add JSON format instruction to prompt
+            json_prompt = ChatPromptTemplate.from_messages([
+                ("system", """You are a routing assistant. Analyze the message and route to the appropriate agent.
+
+Available agents:
+- food_agent: Food logging, dietary preferences, meal suggestions
+- task_agent: Task management, todos, reminders
+- event_agent: Calendar events, meetings, scheduling
+- memory_agent: Storing and searching memories/notes
+
+Respond with ONLY a valid JSON object in this exact format:
+{{"agent": "agent_name", "confidence": 0.9, "reason": "brief explanation"}}
+
+Message: {message}
+Previous agent: {previous_agent}
+Context: {context}""")
+            ])
+
+            response = await llm.ainvoke(
+                json_prompt.format_messages(
+                    message=message,
+                    previous_agent=context.get("previous_agent", "none"),
+                    context=str(context)
+                )
+            )
+
+            # Parse JSON from response
+            import json
+            import re
+
+            response_text = response.content if hasattr(response, 'content') else str(response)
+
+            # Extract JSON from response (handles markdown code blocks)
+            json_match = re.search(r'\{[^}]+\}', response_text)
+            if json_match:
+                decision_dict = json.loads(json_match.group(0))
+                decision = RoutingDecision(**decision_dict)
+            else:
+                raise ValueError("Could not parse JSON from LLM response")
 
         logger.info(
             f"LLM routing: '{message[:50]}...' → {decision.agent} "

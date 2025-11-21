@@ -4,8 +4,10 @@ Redis-based checkpointer for state persistence.
 
 import json
 import pickle
-from typing import Optional, Any
-from langgraph.checkpoint.base import BaseCheckpointSaver, Checkpoint
+from typing import Optional, Any, Sequence
+from langgraph.checkpoint.base import BaseCheckpointSaver, Checkpoint, CheckpointTuple, CheckpointMetadata
+from langchain_core.runnables import RunnableConfig
+from langgraph.checkpoint.base import ChannelVersions
 from config import settings
 from utils.redis_client import get_redis_client
 from utils.logging import get_logger
@@ -39,16 +41,13 @@ class RedisCheckpointSaver(BaseCheckpointSaver):
 
     async def aget(
         self,
-        config: dict,
-        *,
-        checkpoint_id: Optional[str] = None,
+        config: RunnableConfig,
     ) -> Optional[Checkpoint]:
         """
         Get checkpoint from Redis.
 
         Args:
             config: Configuration with thread_id
-            checkpoint_id: Optional specific checkpoint ID
 
         Returns:
             Checkpoint if found, None otherwise
@@ -58,7 +57,7 @@ class RedisCheckpointSaver(BaseCheckpointSaver):
             return None
 
         redis = await self._get_redis()
-        key = self._get_key(thread_id, checkpoint_id)
+        key = self._get_key(thread_id)
 
         try:
             data = await redis.get(key)
@@ -71,22 +70,73 @@ class RedisCheckpointSaver(BaseCheckpointSaver):
 
         return None
 
+    async def aget_tuple(self, config: RunnableConfig) -> Optional[CheckpointTuple]:
+        """
+        Get checkpoint tuple from Redis.
+
+        Args:
+            config: Configuration with thread_id
+
+        Returns:
+            CheckpointTuple if found, None otherwise
+        """
+        thread_id = config.get("configurable", {}).get("thread_id")
+        if not thread_id:
+            return None
+
+        redis = await self._get_redis()
+        key = self._get_key(thread_id)
+
+        try:
+            data = await redis.get(key)
+            if data:
+                checkpoint = pickle.loads(data.encode('latin1'))
+                logger.debug(f"Retrieved checkpoint tuple for thread {thread_id}")
+
+                # Return CheckpointTuple with required fields
+                # Initialize metadata with step counter
+                metadata = CheckpointMetadata(
+                    source="input",
+                    step=getattr(checkpoint, "step", 0),
+                    writes={},
+                    parents={}
+                )
+
+                return CheckpointTuple(
+                    config=config,
+                    checkpoint=checkpoint,
+                    metadata=metadata,
+                    parent_config=None,
+                    pending_writes=None
+                )
+        except Exception as e:
+            logger.error(f"Error retrieving checkpoint tuple: {e}")
+
+        return None
+
     async def aput(
         self,
-        config: dict,
+        config: RunnableConfig,
         checkpoint: Checkpoint,
-    ) -> None:
+        metadata: CheckpointMetadata,
+        new_versions: ChannelVersions,
+    ) -> RunnableConfig:
         """
         Save checkpoint to Redis.
 
         Args:
             config: Configuration with thread_id
             checkpoint: Checkpoint to save
+            metadata: Checkpoint metadata
+            new_versions: Channel versions
+
+        Returns:
+            Updated RunnableConfig
         """
         thread_id = config.get("configurable", {}).get("thread_id")
         if not thread_id:
             logger.warning("No thread_id in config, skipping checkpoint save")
-            return
+            return config
 
         redis = await self._get_redis()
         key = self._get_key(thread_id)
@@ -105,6 +155,47 @@ class RedisCheckpointSaver(BaseCheckpointSaver):
             logger.debug(f"Saved checkpoint for thread {thread_id}")
         except Exception as e:
             logger.error(f"Error saving checkpoint: {e}")
+
+        return config
+
+    async def aput_writes(
+        self,
+        config: RunnableConfig,
+        writes: Sequence[tuple[str, Any]],
+        task_id: str,
+        task_path: str = '',
+    ) -> None:
+        """
+        Store pending writes to Redis.
+
+        Args:
+            config: Configuration with thread_id
+            writes: Sequence of (channel, value) tuples to write
+            task_id: Task identifier
+            task_path: Optional task path
+        """
+        thread_id = config.get("configurable", {}).get("thread_id")
+        if not thread_id:
+            logger.warning("No thread_id in config, skipping writes")
+            return
+
+        redis = await self._get_redis()
+        key = f"checkpoint:{thread_id}:writes:{task_id}"
+
+        try:
+            # Serialize writes
+            data = pickle.dumps(writes).decode('latin1')
+
+            # Save with shorter TTL (writes are temporary)
+            await redis.setex(
+                key,
+                3600,  # 1 hour TTL for pending writes
+                data
+            )
+
+            logger.debug(f"Saved {len(writes)} pending writes for thread {thread_id}, task {task_id}")
+        except Exception as e:
+            logger.error(f"Error saving pending writes: {e}")
 
     def get(
         self,
