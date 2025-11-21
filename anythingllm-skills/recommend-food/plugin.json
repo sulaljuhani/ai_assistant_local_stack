@@ -1,0 +1,34 @@
+{
+  "name": "Recommend Food",
+  "hubId": "recommend-food",
+  "schema": "skill-1.0.0",
+  "version": "1.0.0",
+  "description": "Get personalized food recommendations based on your food history. Suggests foods you liked or loved but haven't eaten recently.",
+  "active": true,
+  "imported": true,
+  "author": "AI Stack",
+  "license": "MIT",
+  "entrypoint": {
+    "file": "handler.js",
+    "params": {
+      "message": {
+        "description": "Optional context for the recommendation (e.g., 'I want something healthy' or 'suggest dinner')",
+        "type": "string"
+      }
+    }
+  },
+  "examples": [
+    {
+      "prompt": "What should I eat for dinner?",
+      "call": "{\"message\": \"What should I eat for dinner?\"}"
+    },
+    {
+      "prompt": "Recommend me something healthy",
+      "call": "{\"message\": \"Recommend me something healthy\"}"
+    },
+    {
+      "prompt": "Suggest a food I haven't had in a while",
+      "call": "{\"message\": \"Suggest a food I haven't had in a while\"}"
+    }
+  ]
+}

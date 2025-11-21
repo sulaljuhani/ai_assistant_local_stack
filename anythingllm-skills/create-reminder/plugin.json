@@ -1,0 +1,46 @@
+{
+  "name": "Create Reminder",
+  "hubId": "create-reminder",
+  "schema": "skill-1.0.0",
+  "version": "1.0.0",
+  "description": "Create a reminder that will fire at a specific date and time. Includes title, reminder time, priority, and category.",
+  "active": true,
+  "imported": true,
+  "author": "AI Stack",
+  "license": "MIT",
+  "entrypoint": {
+    "file": "handler.js",
+    "params": {
+      "title": {
+        "description": "Reminder title or description",
+        "type": "string"
+      },
+      "remind_at": {
+        "description": "When to fire the reminder in ISO format (e.g., 2025-11-22T09:00:00Z)",
+        "type": "string"
+      },
+      "priority": {
+        "description": "Priority level: low, medium, or high (default: medium)",
+        "type": "string"
+      },
+      "category": {
+        "description": "Reminder category (e.g., Health, Work, Personal)",
+        "type": "string"
+      }
+    }
+  },
+  "examples": [
+    {
+      "prompt": "Remind me to take my medication at 9 AM tomorrow",
+      "call": "{\"title\": \"Take medication\", \"remind_at\": \"2025-11-22T09:00:00Z\", \"priority\": \"high\", \"category\": \"Health\"}"
+    },
+    {
+      "prompt": "Set a reminder for the team meeting at 2 PM today",
+      "call": "{\"title\": \"Team meeting\", \"remind_at\": \"2025-11-21T14:00:00Z\", \"category\": \"Work\"}"
+    },
+    {
+      "prompt": "Remind me to call mom this evening at 7 PM",
+      "call": "{\"title\": \"Call mom\", \"remind_at\": \"2025-11-21T19:00:00Z\", \"category\": \"Personal\"}"
+    }
+  ]
+}

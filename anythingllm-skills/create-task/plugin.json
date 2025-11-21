@@ -1,0 +1,46 @@
+{
+  "name": "Create Task",
+  "hubId": "create-task",
+  "schema": "skill-1.0.0",
+  "version": "1.0.0",
+  "description": "Create a new task or todo item. Can include title, description, priority (low/medium/high), category, due date, and tags.",
+  "active": true,
+  "imported": true,
+  "author": "AI Stack",
+  "license": "MIT",
+  "entrypoint": {
+    "file": "handler.js",
+    "params": {
+      "title": {
+        "description": "Task title or description",
+        "type": "string"
+      },
+      "priority": {
+        "description": "Priority level: low, medium, or high (default: medium)",
+        "type": "string"
+      },
+      "category": {
+        "description": "Task category (e.g., Work, Personal, DevOps)",
+        "type": "string"
+      },
+      "due_date": {
+        "description": "Due date in ISO format (e.g., 2025-11-22T15:00:00Z)",
+        "type": "string"
+      }
+    }
+  },
+  "examples": [
+    {
+      "prompt": "Add a task to fix the Docker configuration",
+      "call": "{\"title\": \"Fix Docker configuration\", \"priority\": \"high\", \"category\": \"DevOps\"}"
+    },
+    {
+      "prompt": "Create a high priority task to call the dentist by Friday",
+      "call": "{\"title\": \"Call dentist\", \"priority\": \"high\", \"due_date\": \"2025-11-22T17:00:00Z\"}"
+    },
+    {
+      "prompt": "Remind me to review the quarterly report",
+      "call": "{\"title\": \"Review quarterly report\", \"priority\": \"medium\", \"category\": \"Work\"}"
+    }
+  ]
+}

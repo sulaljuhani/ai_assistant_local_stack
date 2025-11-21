@@ -1,0 +1,34 @@
+{
+  "name": "Log Food",
+  "hubId": "log-food",
+  "schema": "skill-1.0.0",
+  "version": "1.0.0",
+  "description": "Log food you ate using the LangGraph Food Agent. The agent will ask for required details like location (home/outside), preference (liked/disliked/favorite), and restaurant name if eating outside.",
+  "active": true,
+  "imported": true,
+  "author": "AI Stack",
+  "license": "MIT",
+  "entrypoint": {
+    "file": "handler.js",
+    "params": {
+      "message": {
+        "description": "Natural language description of what you ate (e.g., 'I had pizza at Joe's Pizza, it was my favorite')",
+        "type": "string"
+      }
+    }
+  },
+  "examples": [
+    {
+      "prompt": "I had pizza at Joe's Pizza and it was amazing",
+      "call": "{\"message\": \"I had pizza at Joe's Pizza and it was amazing\"}"
+    },
+    {
+      "prompt": "Log that I ate homemade pasta for dinner, I liked it",
+      "call": "{\"message\": \"I ate homemade pasta for dinner, I liked it\"}"
+    },
+    {
+      "prompt": "I had a burger outside at Five Guys, it was my favorite",
+      "call": "{\"message\": \"I had a burger outside at Five Guys, it was my favorite\"}"
+    }
+  ]
+}

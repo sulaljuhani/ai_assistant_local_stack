@@ -1,0 +1,38 @@
+{
+  "name": "Import Chat History",
+  "hubId": "import-chat-history",
+  "schema": "skill-1.0.0",
+  "version": "1.0.0",
+  "description": "Import chat conversation history from other AI platforms (ChatGPT, Claude, Gemini) and make them searchable. Supports JSON export files.",
+  "active": true,
+  "imported": true,
+  "author": "AI Stack",
+  "license": "MIT",
+  "entrypoint": {
+    "file": "handler.js",
+    "params": {
+      "source": {
+        "description": "Source platform: chatgpt, claude, or gemini",
+        "type": "string"
+      },
+      "file_path": {
+        "description": "Path to the exported chat file (e.g., /mnt/user/appdata/ai_stack/imports/chatgpt.json)",
+        "type": "string"
+      }
+    }
+  },
+  "examples": [
+    {
+      "prompt": "Import my ChatGPT conversations from /imports/chatgpt.json",
+      "call": "{\"source\": \"chatgpt\", \"file_path\": \"/mnt/user/appdata/ai_stack/imports/chatgpt.json\"}"
+    },
+    {
+      "prompt": "Import Claude chat history from /imports/claude-export.json",
+      "call": "{\"source\": \"claude\", \"file_path\": \"/mnt/user/appdata/ai_stack/imports/claude-export.json\"}"
+    },
+    {
+      "prompt": "Import Gemini chats from the imports folder",
+      "call": "{\"source\": \"gemini\", \"file_path\": \"/mnt/user/appdata/ai_stack/imports/gemini.json\"}"
+    }
+  ]
+}

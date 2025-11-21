@@ -1,0 +1,34 @@
+{
+  "name": "AI Assistant",
+  "hubId": "ai-assistant",
+  "schema": "skill-1.0.0",
+  "version": "1.0.0",
+  "description": "Intelligent personal assistant that handles tasks, reminders, food logging, and daily planning. Asks clarifying questions and makes smart suggestions. Use for complex requests that need conversation.",
+  "active": true,
+  "imported": true,
+  "author": "AI Stack",
+  "license": "MIT",
+  "entrypoint": {
+    "file": "handler.js",
+    "params": {
+      "message": {
+        "description": "Your request or question for the AI assistant",
+        "type": "string"
+      }
+    }
+  },
+  "examples": [
+    {
+      "prompt": "Help me plan my day",
+      "call": "{\"message\": \"Help me plan my day\"}"
+    },
+    {
+      "prompt": "What should I work on next?",
+      "call": "{\"message\": \"What should I work on next?\"}"
+    },
+    {
+      "prompt": "Create a task and remind me about it",
+      "call": "{\"message\": \"Create a task and remind me about it\"}"
+    }
+  ]
+}

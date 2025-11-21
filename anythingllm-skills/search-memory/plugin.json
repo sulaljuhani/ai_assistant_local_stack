@@ -1,0 +1,38 @@
+{
+  "name": "Search Memory",
+  "hubId": "search-memory",
+  "schema": "skill-1.0.0",
+  "version": "1.0.0",
+  "description": "Search through stored memories and past conversations using semantic search. Returns relevant memories with similarity scores.",
+  "active": true,
+  "imported": true,
+  "author": "AI Stack",
+  "license": "MIT",
+  "entrypoint": {
+    "file": "handler.js",
+    "params": {
+      "query": {
+        "description": "What to search for in memories",
+        "type": "string"
+      },
+      "limit": {
+        "description": "Maximum number of results to return (default: 10)",
+        "type": "number"
+      }
+    }
+  },
+  "examples": [
+    {
+      "prompt": "What did I say about Docker configuration?",
+      "call": "{\"query\": \"Docker configuration\", \"limit\": 10}"
+    },
+    {
+      "prompt": "Search my memories for project deadlines",
+      "call": "{\"query\": \"project deadlines\", \"limit\": 10}"
+    },
+    {
+      "prompt": "Find notes about the meeting with John",
+      "call": "{\"query\": \"meeting with John\", \"limit\": 5}"
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "name": "Store Memory",
+  "hubId": "store-memory",
+  "schema": "skill-1.0.0",
+  "version": "1.0.0",
+  "description": "Store important information as a memory for future recall. Memories are automatically classified into sectors (semantic, episodic, procedural, emotional, reflective) and made searchable.",
+  "active": true,
+  "imported": true,
+  "author": "AI Stack",
+  "license": "MIT",
+  "entrypoint": {
+    "file": "handler.js",
+    "params": {
+      "content": {
+        "description": "The information to remember",
+        "type": "string"
+      },
+      "conversation_title": {
+        "description": "Optional title for context (e.g., 'Coding Preferences', 'Project Notes')",
+        "type": "string"
+      }
+    }
+  },
+  "examples": [
+    {
+      "prompt": "Remember that I prefer Python over JavaScript for backend work",
+      "call": "{\"content\": \"User prefers Python over JavaScript for backend development\", \"conversation_title\": \"Coding Preferences\"}"
+    },
+    {
+      "prompt": "Store this: The Docker network issue was resolved by recreating the bridge",
+      "call": "{\"content\": \"Docker network issue resolved by recreating the bridge\", \"conversation_title\": \"DevOps Solutions\"}"
+    },
+    {
+      "prompt": "Note that the project deadline is December 15th",
+      "call": "{\"content\": \"Project deadline is December 15th\", \"conversation_title\": \"Project Timeline\"}"
+    }
+  ]
+}
