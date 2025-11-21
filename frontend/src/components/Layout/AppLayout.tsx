@@ -32,7 +32,7 @@ export const AppLayout: React.FC = () => {
           <div className="w-11" /> {/* Spacer for centering */}
         </div>
 
-        <ChatBox />
+        <ChatBox onOpenSettings={() => setIsSettingsOpen(true)} />
       </div>
 
       {/* Settings Modal */}
