@@ -1,9 +1,10 @@
 import axios from 'axios';
+import { loadApiSettings } from '../utils/storage';
 
 // Environment variable or fallback
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8080';
 
-// Create axios instance
+// Create axios instance for backend API
 export const apiClient = axios.create({
   baseURL: BACKEND_URL,
   headers: {
@@ -11,6 +12,12 @@ export const apiClient = axios.create({
   },
   timeout: 30000, // 30 seconds
 });
+
+/**
+ * Get current API settings
+ * These settings are available for direct API integration if needed
+ */
+export const getApiSettings = () => loadApiSettings();
 
 // Request interceptor (for future auth tokens)
 apiClient.interceptors.request.use(

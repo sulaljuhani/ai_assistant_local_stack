@@ -5,7 +5,37 @@ import { MAX_CONVERSATIONS } from './constants';
 const STORAGE_KEYS = {
   CONVERSATIONS: 'ai_stack_conversations',
   SETTINGS: 'ai_stack_settings',
+  API_SETTINGS: 'ai_stack_api_settings',
 } as const;
+
+/**
+ * API Provider types
+ */
+export type ApiProvider = 'ollama' | 'openai';
+
+/**
+ * API Settings interface
+ */
+export interface ApiSettings {
+  provider: ApiProvider;
+  ollamaUrl: string;
+  ollamaModel: string;
+  openaiApiKey: string;
+  openaiModel: string;
+  openaiBaseUrl: string;
+}
+
+/**
+ * Default API settings
+ */
+const DEFAULT_API_SETTINGS: ApiSettings = {
+  provider: 'ollama',
+  ollamaUrl: 'http://localhost:11434',
+  ollamaModel: 'llama3.2:3b',
+  openaiApiKey: '',
+  openaiModel: 'gpt-4',
+  openaiBaseUrl: 'https://api.openai.com/v1',
+};
 
 /**
  * Load conversations from localStorage
@@ -58,5 +88,37 @@ export const clearAllConversations = (): void => {
     localStorage.removeItem(STORAGE_KEYS.CONVERSATIONS);
   } catch (error) {
     console.error('Failed to clear conversations:', error);
+  }
+};
+
+/**
+ * Load API settings from localStorage
+ */
+export const loadApiSettings = (): ApiSettings => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEYS.API_SETTINGS);
+    if (!stored) return DEFAULT_API_SETTINGS;
+
+    const settings = JSON.parse(stored) as Partial<ApiSettings>;
+
+    // Merge with defaults to handle missing fields
+    return {
+      ...DEFAULT_API_SETTINGS,
+      ...settings,
+    };
+  } catch (error) {
+    console.error('Failed to load API settings:', error);
+    return DEFAULT_API_SETTINGS;
+  }
+};
+
+/**
+ * Save API settings to localStorage
+ */
+export const saveApiSettings = (settings: ApiSettings): void => {
+  try {
+    localStorage.setItem(STORAGE_KEYS.API_SETTINGS, JSON.stringify(settings));
+  } catch (error) {
+    console.error('Failed to save API settings:', error);
   }
 };
