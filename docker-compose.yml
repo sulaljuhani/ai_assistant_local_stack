@@ -62,6 +62,32 @@ services:
       timeout: 10s
       retries: 3
 
+  # ===========================================================================
+  # Frontend WebUI
+  # ===========================================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ai-stack-frontend
+    restart: unless-stopped
+    environment:
+      # Backend API URL (internal Docker network)
+      VITE_BACKEND_URL: ${VITE_BACKEND_URL:-http://langgraph-agents:8000}
+    ports:
+      - "${FRONTEND_PORT:-3001}:3001"
+    networks:
+      - ai-stack-network
+    depends_on:
+      - langgraph-agents
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
 networks:
   ai-stack-network:
     external: true
