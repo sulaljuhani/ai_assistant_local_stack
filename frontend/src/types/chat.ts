@@ -33,5 +33,4 @@ export interface ChatState {
   // UI state
   isLoading: boolean;
   isSending: boolean;
-  error: string | null;
 }

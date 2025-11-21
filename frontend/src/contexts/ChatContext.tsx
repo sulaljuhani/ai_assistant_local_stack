@@ -9,6 +9,7 @@ import {
   clearAllConversations as clearStorage,
 } from '../utils/storage';
 import { USER_ID, WORKSPACE } from '../utils/constants';
+import { useToast } from './ToastContext';
 
 interface ChatContextType extends ChatState {
   // Actions
@@ -17,18 +18,17 @@ interface ChatContextType extends ChatState {
   switchConversation: (id: string) => void;
   deleteConversation: (id: string) => Promise<void>;
   clearAllConversations: () => void;
-  clearError: () => void;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const { showError, showSuccess } = useToast();
   const [state, setState] = useState<ChatState>({
     currentConversation: null,
     conversations: [],
     isLoading: true,
     isSending: false,
-    error: null,
   });
 
   // Load conversations from localStorage on mount
@@ -55,7 +55,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!state.currentConversation) return;
     if (!content.trim()) return;
 
-    setState(prev => ({ ...prev, isSending: true, error: null }));
+    setState(prev => ({ ...prev, isSending: true }));
 
     // Add user message immediately (optimistic update)
     const userMessage: Message = {
@@ -134,6 +134,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
     } catch (error) {
       console.error('Failed to send message:', error);
+      showError('Failed to send message. Please check your connection and try again.');
 
       // Remove optimistic update on error
       setState(prev => {
@@ -150,7 +151,6 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           ...prev,
           currentConversation: revertedConv,
           isSending: false,
-          error: 'Failed to send message. Please try again.',
         };
       });
     }
@@ -178,7 +178,6 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setState(prev => ({
         ...prev,
         currentConversation: conversation,
-        error: null,
       }));
     }
   };
@@ -202,12 +201,11 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           currentConversation: newCurrent,
         };
       });
+
+      showSuccess('Conversation deleted successfully');
     } catch (error) {
       console.error('Failed to delete conversation:', error);
-      setState(prev => ({
-        ...prev,
-        error: 'Failed to delete conversation.',
-      }));
+      showError('Failed to delete conversation. Please try again.');
     }
   };
 
@@ -218,12 +216,8 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       conversations: [],
       isLoading: false,
       isSending: false,
-      error: null,
     });
-  };
-
-  const clearError = () => {
-    setState(prev => ({ ...prev, error: null }));
+    showSuccess('All conversations cleared');
   };
 
   return (
@@ -235,7 +229,6 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         switchConversation,
         deleteConversation,
         clearAllConversations,
-        clearError,
       }}
     >
       {children}

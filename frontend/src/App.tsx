@@ -1,11 +1,14 @@
 import { ChatProvider } from './contexts/ChatContext';
+import { ToastProvider } from './contexts/ToastContext';
 import { AppLayout } from './components/Layout/AppLayout';
 
 function App() {
   return (
-    <ChatProvider>
-      <AppLayout />
-    </ChatProvider>
+    <ToastProvider>
+      <ChatProvider>
+        <AppLayout />
+      </ChatProvider>
+    </ToastProvider>
   );
 }
 

@@ -1,4 +1,4 @@
-import { useState, useRef, type KeyboardEvent, type ChangeEvent } from 'react';
+import { useState, useRef, useEffect, type KeyboardEvent, type ChangeEvent } from 'react';
 import { Send, Loader2 } from 'lucide-react';
 
 interface MessageInputProps {
@@ -14,6 +14,13 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 }) => {
   const [message, setMessage] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-focus input on mount and when loading finishes
+  useEffect(() => {
+    if (!isLoading && !disabled) {
+      textareaRef.current?.focus();
+    }
+  }, [isLoading, disabled]);
 
   // Auto-resize textarea
   const handleInput = (e: ChangeEvent<HTMLTextAreaElement>) => {

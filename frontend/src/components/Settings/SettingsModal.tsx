@@ -1,5 +1,7 @@
-import { X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { useChat } from '../../contexts/ChatContext';
+import { chatApi } from '../../api/chat';
 import { USER_ID, WORKSPACE } from '../../utils/constants';
 
 interface SettingsModalProps {
@@ -9,6 +11,17 @@ interface SettingsModalProps {
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const { clearAllConversations } = useChat();
+  const [backendStatus, setBackendStatus] = useState<'loading' | 'online' | 'offline'>('loading');
+
+  // Check backend health when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setBackendStatus('loading');
+      chatApi.healthCheck()
+        .then(() => setBackendStatus('online'))
+        .catch(() => setBackendStatus('offline'));
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -91,12 +104,39 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             />
           </div>
 
+          {/* Backend Status */}
+          <div className="pt-4 border-t border-border">
+            <label className="block text-sm font-medium text-text-primary mb-2">
+              Backend Status
+            </label>
+            <div className="flex items-center gap-2 px-3 py-2 bg-input-bg border border-input-border rounded-lg">
+              {backendStatus === 'loading' && (
+                <>
+                  <Loader2 className="w-4 h-4 text-text-secondary animate-spin" />
+                  <span className="text-sm text-text-secondary">Checking...</span>
+                </>
+              )}
+              {backendStatus === 'online' && (
+                <>
+                  <CheckCircle className="w-4 h-4 text-accent-green" />
+                  <span className="text-sm text-accent-green">Connected</span>
+                </>
+              )}
+              {backendStatus === 'offline' && (
+                <>
+                  <XCircle className="w-4 h-4 text-error" />
+                  <span className="text-sm text-error">Offline</span>
+                </>
+              )}
+            </div>
+          </div>
+
           {/* Clear All */}
           <div className="pt-4 border-t border-border">
             <button
               onClick={handleClearAll}
               className="w-full px-4 py-2.5 bg-error hover:bg-error/90 rounded-lg
-                       text-white font-medium transition-colors"
+                       text-white font-medium transition-colors min-h-[44px]"
             >
               Clear All Conversations
             </button>
