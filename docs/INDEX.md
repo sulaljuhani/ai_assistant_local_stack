@@ -1,47 +1,66 @@
 # Documentation Index
 
-Complete documentation for the AI Assistant Local Stack.
+Complete documentation for the AI Assistant Local Stack. This index covers all active documentation - historical documents have been moved to `archive/`.
 
 ## 📋 Quick Navigation
 
-### Getting Started
+### 🚀 Getting Started
 - [Main README](../README.md) - Project overview and quick start
-- [Production Readiness Report](reports/PRODUCTION_READINESS_REPORT.md) - Security audit and deployment checklist
+- [Deployment Guide](DEPLOYMENT_GUIDE.md) - Step-by-step deployment instructions
 - [Troubleshooting Guide](TROUBLESHOOTING.md) - Common issues and solutions
+- [Production Readiness Report](reports/PRODUCTION_READINESS_REPORT.md) - Security audit and deployment checklist
 
-### AI Agents
-- [Pydantic AI Agent Guide](PYDANTIC_AI_AGENT_GUIDE.md) - Current implementation deployment guide
-- [Pydantic AI Implementation](PYDANTIC_AI_IMPLEMENTATION.md) - What was built and why
-- [LangGraph Multi-Agent Plan](LANGGRAPH_MULTI_AGENT_PLAN.md) - Future multi-agent architecture
+### 🤖 AI Agents
+- [LangGraph Flow Diagram](LANGGRAPH_FLOW_DIAGRAM.md) - ⭐ Visual architecture and routing strategies
+- [LangGraph Multi-Agent Plan](LANGGRAPH_MULTI_AGENT_PLAN.md) - Multi-agent architecture overview
+- [LangGraph Architecture](../containers/langgraph-agents/ARCHITECTURE.md) - Technical implementation details
+- [Prompt Guide](../containers/langgraph-agents/PROMPT_GUIDE.md) - How to modify agent prompts
+- [N8N to Python Migration](N8N_TO_PYTHON_MIGRATION_PLAN.md) - Complete migration documentation
 
-### Core Components
-- [unRAID Templates](../unraid-templates/README.md) - Container deployment templates
-- [Container Architecture](../unraid-templates/CONTAINER_ARCHITECTURE.md) - System architecture overview
+### 🔌 API & Integration
+- [API Documentation](API_DOCUMENTATION.md) - REST API reference
+- [Integration FAQ](INTEGRATION_FAQ.md) - Common integration questions
+- [OpenWebUI Integration](../openwebui/README.md) - OpenWebUI setup guide
+- [OpenWebUI Quick Start](../openwebui/QUICK_START.md) - Fast setup instructions
+- [OpenWebUI Adapter](../openwebui/adapter/README.md) - Adapter service details
+
+### 🗄️ Data & Storage
 - [Database Migrations](../migrations/README.md) - PostgreSQL schema and migrations
 - [MCP Server](../containers/mcp-server/README.md) - Database tools via Model Context Protocol
-- [n8n Workflows](../n8n-workflows/README.md) - Automation workflow configurations
-
-### Scripts & Tools
 - [Qdrant Setup](../scripts/qdrant/README.md) - Vector database initialization
 - [Vault Watcher](../scripts/vault-watcher/README.md) - Obsidian file monitoring
-- [Security Fix Guide](N8N_WORKFLOW_SECURITY_FIX_GUIDE.md) - Securing n8n webhooks
 
-### Features & Implementation
-- [Food Tracker Updates](FOOD_TRACKER_UPDATES.md) - Food logging feature details
-- [Food Log Feature](FOOD_LOG_FEATURE.md) - Food management system
-- [Phase 2 Implementation](PHASE_2_IMPLEMENTATION.md) - Development phase 2
-- [Phase 3 Implementation](PHASE_3_IMPLEMENTATION.md) - Development phase 3
-- [OpenMemory Comparison](OPENMEMORY_COMPARISON.md) - Memory system analysis
-
-### Reports & Analysis
-- [Code Review Report](reports/CODE_REVIEW_REPORT.md) - Comprehensive codebase analysis
-- [Duplication Analysis](reports/DUPLICATION_ANALYSIS.md) - Code quality assessment
-- [Production Readiness Report](reports/PRODUCTION_READINESS_REPORT.md) - Security and deployment status
-
-### Review Documentation
+### 🏗️ System Architecture
+- [Container Architecture](../unraid-templates/CONTAINER_ARCHITECTURE.md) - System architecture overview
+- [unRAID Templates](../unraid-templates/README.md) - Container deployment templates
 - [Complete Structure](review/COMPLETE_STRUCTURE.md) - Full system architecture
-- [Code Review Summary](review/CODE_REVIEW_SUMMARY.md) - Review findings
-- [Answers to Questions](review/ANSWERS_TO_YOUR_QUESTIONS.md) - Technical Q&A
+
+### 📊 Reports & Analysis
+- [Production Readiness Report](reports/PRODUCTION_READINESS_REPORT.md) - Security audit and deployment status
+- [Security Audit Findings](review/SECURITY_AUDIT_FINDINGS.md) - Detailed security findings
+- [Code Review Report](reports/CODE_REVIEW_REPORT.md) - Comprehensive codebase analysis
+- [Code Review Summary](review/CODE_REVIEW_SUMMARY.md) - Review findings summary
+- [Duplication Analysis](reports/DUPLICATION_ANALYSIS.md) - Code quality assessment
+
+### 🔧 Development & Testing
+- [OpenMemory Comparison](OPENMEMORY_COMPARISON.md) - Memory system analysis
+- [Testing Guide](../tests/README.md) - Test scripts and usage
+- [Technical Q&A](review/ANSWERS_TO_YOUR_QUESTIONS.md) - Technical questions answered
+
+### 📂 Archived Documentation
+Historical and completed implementation documentation in `archive/`:
+- **Phase Implementation Plans**: PHASE_1-4_IMPLEMENTATION.md
+- **Gap Analysis**: GAPS_QUICK_REFERENCE.md, ARCHITECTURE_GAPS_ANALYSIS.md
+- **Feature Docs**: FOOD_LOG_FEATURE.md, FOOD_TRACKER_UPDATES.md
+- **Legacy Implementations**: PYDANTIC_AI_AGENT_GUIDE.md, PYDANTIC_AI_IMPLEMENTATION.md
+- **n8n Migration**: N8N_WORKFLOW_SECURITY_FIX_GUIDE.md
+- **WebUI Planning**: CUSTOM_WEBUI_PLAN.md
+- **Deployment**: PRE_DEPLOYMENT_CHECKLIST.md
+
+LangGraph implementation summaries in `../containers/langgraph-agents/archive/`:
+- Tool integration and event tools documentation
+- Refactoring summaries
+- Implementation plans
 
 ## 📊 Statistics
 
@@ -55,13 +74,15 @@ Complete documentation for the AI Assistant Local Stack.
 ## 🔍 Find What You Need
 
 ### I want to...
-- **Deploy the system** → [Main README](../README.md) Quick Start section
+- **Deploy the system** → [Deployment Guide](DEPLOYMENT_GUIDE.md) or [Main README](../README.md)
 - **Understand security** → [Production Readiness Report](reports/PRODUCTION_READINESS_REPORT.md)
-- **Set up agents** → [Pydantic AI Agent Guide](PYDANTIC_AI_AGENT_GUIDE.md)
+- **Understand agent flow** → [LangGraph Flow Diagram](LANGGRAPH_FLOW_DIAGRAM.md) ⭐
+- **Modify agent prompts** → [Prompt Guide](../containers/langgraph-agents/PROMPT_GUIDE.md)
 - **Fix issues** → [Troubleshooting Guide](TROUBLESHOOTING.md)
 - **Understand architecture** → [Complete Structure](review/COMPLETE_STRUCTURE.md)
 - **Review code quality** → [Code Review Report](reports/CODE_REVIEW_REPORT.md)
 - **Learn about containers** → [Container Architecture](../unraid-templates/CONTAINER_ARCHITECTURE.md)
+- **Integrate with OpenWebUI** → [OpenWebUI Quick Start](../openwebui/QUICK_START.md)
 
 ## 📝 Documentation Standards
 
@@ -80,7 +101,8 @@ All documentation in this project follows these standards:
 
 ## 🔄 Recent Updates
 
+- **Documentation Reorganized**: Historical docs moved to `archive/` folders
+- **Database Schema Added**: Complete schema documented in main README
+- **Agent Flow Diagram**: New comprehensive visual documentation
 - **Security Audit Complete**: All 7 critical issues resolved
-- **Documentation Reorganized**: Reports moved to `docs/reports/`
 - **Production Ready**: System validated and tested
-- **Comprehensive Review**: Full codebase analysis completed

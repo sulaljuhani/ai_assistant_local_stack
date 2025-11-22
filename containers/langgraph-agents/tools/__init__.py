@@ -106,6 +106,16 @@ from .event_scheduling import (
     get_busy_free_times,
 )
 
+# Reminder tools
+from .reminders import (
+    search_reminders,
+    create_reminder,
+    update_reminder,
+    complete_reminder,
+    get_reminders_today,
+    get_reminders_due_soon,
+)
+
 __all__ = [
     # Database - Food
     "search_food_log",
@@ -181,4 +191,11 @@ __all__ = [
     "suggest_meeting_times",
     "bulk_check_conflicts",
     "get_busy_free_times",
+    # Reminders
+    "search_reminders",
+    "create_reminder",
+    "update_reminder",
+    "complete_reminder",
+    "get_reminders_today",
+    "get_reminders_due_soon",
 ]

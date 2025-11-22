@@ -47,7 +47,7 @@ def get_cached_llm(temperature: float = 0.7):
 def create_cached_react_agent(
     agent_name: str,
     tools: List[Callable],
-    temperature: float = 0.7
+    temperature: float = 0.7,
 ):
     """
     Create and cache a ReAct agent.
@@ -63,7 +63,16 @@ def create_cached_react_agent(
         Cached ReAct agent
     """
     llm = get_cached_llm(temperature)
-    agent = create_react_agent(model=llm, tools=tools)
+
+    # Create agent with strict response format for OpenAI API compatibility (e.g., DeepSeek)
+    # This ensures tool results are properly serialized as strings
+    agent = create_react_agent(
+        model=llm,
+        tools=tools,
+        # Use state_modifier to ensure proper message formatting
+        state_modifier=None,  # Let LangGraph handle default formatting
+    )
+
     logger.info(f"Created {agent_name} with {len(tools)} tools")
     return agent
 
@@ -72,7 +81,7 @@ class HandoffDecision(BaseModel):
     """Structured handoff decision."""
 
     should_handoff: bool
-    target_agent: Optional[Literal["food_agent", "task_agent", "event_agent", "memory_agent"]] = None
+    target_agent: Optional[Literal["food_agent", "task_agent", "event_agent", "reminder_agent"]] = None
     reason: Optional[str] = None
 
 
@@ -125,9 +134,11 @@ Current agent: {current_agent}
 
 Agent domains:
 - food_agent: Food, meals, eating, nutrition, dietary preferences
-- task_agent: Tasks, todos, reminders, productivity, planning
+- task_agent: Tasks, todos, productivity, planning, notes, and memory storage
+- reminder_agent: Reminders, alerts, nudges, follow-ups
 - event_agent: Calendar, schedule, meetings, appointments, availability
-- memory_agent: Notes, memories, information storage and retrieval
+
+Note: Memory and note-related queries should go to task_agent.
 
 Analyze if the user's request requires a different agent.
 Look for:

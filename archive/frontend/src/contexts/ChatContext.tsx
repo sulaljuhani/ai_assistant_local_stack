@@ -24,32 +24,31 @@ const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { showError, showSuccess } = useToast();
-  const [state, setState] = useState<ChatState>({
-    currentConversation: null,
-    conversations: [],
-    isLoading: true,
-    isSending: false,
+  const createConversation = (title = 'New Chat'): Conversation => ({
+    id: uuidv4(),
+    title,
+    messages: [],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   });
 
-  // Load conversations from localStorage on mount
-  useEffect(() => {
-    const conversations = loadConversations();
+  const [state, setState] = useState<ChatState>(() => {
+    const stored = loadConversations();
+    const conversations = stored.length > 0 ? stored : [createConversation()];
     const lastConversation = conversations[0] || null;
 
-    setState(prev => ({
-      ...prev,
-      conversations,
+    return {
       currentConversation: lastConversation,
+      conversations,
       isLoading: false,
-    }));
-  }, []);
+      isSending: false,
+    };
+  });
 
   // Save conversations to localStorage whenever they change
   useEffect(() => {
-    if (!state.isLoading) {
-      saveConversations(state.conversations);
-    }
-  }, [state.conversations, state.isLoading]);
+    saveConversations(state.conversations);
+  }, [state.conversations]);
 
   const sendMessage = async (content: string) => {
     if (!state.currentConversation) return;
@@ -81,10 +80,24 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       updated_at: new Date().toISOString(),
     };
 
-    setState(prev => ({
-      ...prev,
-      currentConversation: updatedConv,
-    }));
+    setState(prev => {
+      const existing = prev.conversations.some(conv => conv.id === updatedConv.id);
+      const conversations = existing
+        ? prev.conversations.map(conv =>
+            conv.id === updatedConv.id ? updatedConv : conv
+          )
+        : [updatedConv, ...prev.conversations];
+
+      const sorted = [...conversations].sort(
+        (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+      );
+
+      return {
+        ...prev,
+        currentConversation: updatedConv,
+        conversations: sorted,
+      };
+    });
 
     try {
       // Call backend
@@ -135,35 +148,15 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (error) {
       console.error('Failed to send message:', error);
       showError('Failed to send message. Please check your connection and try again.');
-
-      // Remove optimistic update on error
-      setState(prev => {
-        if (!prev.currentConversation) return prev;
-
-        const revertedConv = {
-          ...prev.currentConversation,
-          messages: prev.currentConversation.messages.filter(
-            msg => msg.id !== userMessage.id
-          ),
-        };
-
-        return {
-          ...prev,
-          currentConversation: revertedConv,
-          isSending: false,
-        };
-      });
+      setState(prev => ({
+        ...prev,
+        isSending: false,
+      }));
     }
   };
 
   const createNewConversation = () => {
-    const newConversation: Conversation = {
-      id: uuidv4(),
-      title: 'New Chat',
-      messages: [],
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
+    const newConversation = createConversation();
 
     setState(prev => ({
       ...prev,
@@ -211,9 +204,10 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const clearAllConversations = () => {
     clearStorage();
+    const newConversation = createConversation();
     setState({
-      currentConversation: null,
-      conversations: [],
+      currentConversation: newConversation,
+      conversations: [newConversation],
       isLoading: false,
       isSending: false,
     });
@@ -228,14 +222,16 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         createNewConversation,
         switchConversation,
         deleteConversation,
-        clearAllConversations,
-      }}
-    >
-      {children}
-    </ChatContext.Provider>
+      clearAllConversations,
+    }}
+  >
+    {children}
+  </ChatContext.Provider>
   );
 };
 
+// The provider and hook live together intentionally; suppress fast refresh warning.
+// eslint-disable-next-line react-refresh/only-export-components
 export const useChat = () => {
   const context = useContext(ChatContext);
   if (!context) {

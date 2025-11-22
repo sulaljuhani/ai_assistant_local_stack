@@ -15,6 +15,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Deployment:** 8 Docker containers on shared bridge network
 - **Privacy:** 100% local, no cloud dependencies
 
+**Current UI note:** The custom React frontend and AnythingLLM pieces are archived under `archive/`; active chat UI is OpenWebUI via the adapter/pipe.
+
 ---
 
 ## Quick Start Commands
@@ -69,6 +71,20 @@ export LLM_PROVIDER=ollama
 python main.py
 ```
 
+## OpenWebUI Integration (current)
+
+- UI endpoint: `http://192.168.0.12:8084/` (Workspace → Functions).
+- Pipe Function (recommended for continuity): `openwebui/langgraph_pipe_FIXED.py` uses chat_id as session_id, single-user ID `00000000-0000-0000-0000-000000000001`, model name "Sebastian". In OpenWebUI create a Pipe Function, paste the file, set valves `LANGGRAPH_CHAT_URL=http://langgraph-agents:8000/chat`, `LANGGRAPH_WORKSPACE=default`, optional `LANGGRAPH_API_KEY`, and enable it.
+- Adapter service: `openwebui-adapter` in `docker-compose.yml` forwards OpenAI-style calls to `http://langgraph-agents:8000/chat`. Host port `${OPENWEBUI_ADAPTER_PORT:-8090}` → container `8080` on `ai-stack-network`.
+- Adapter auth: env var `OPENWEBUI_ADAPTER_API_KEY` (compose default `change_me`). Local override for manual runs lives in `openwebui/adapter/.env` with key `9f02cb1950dc88965cf96358049a2b8551a4cc6a6c56ba19ecd54a8d2579ad0f` and `PORT=8090`.
+- Quick adapter probe:
+  ```bash
+  curl -X POST http://localhost:8090/v1/chat/completions \
+    -H "Authorization: Bearer <adapter_key>" \
+    -H "Content-Type: application/json" \
+    -d '{"model":"langgraph","messages":[{"role":"user","content":"ping"}]}'
+  ```
+
 ---
 
 ## Architecture Overview
@@ -76,7 +92,7 @@ python main.py
 ### System Architecture
 
 ```
-User Interfaces (AnythingLLM, API)
+User Interfaces (OpenWebUI adapter/pipe, API; AnythingLLM archived)
            ↓
 LangGraph Multi-Agent System (FastAPI)
     ├── Food Agent
@@ -605,25 +621,72 @@ See `.env.example` for all 50+ options with documentation.
 
 ---
 
-## Resources
+## Documentation Index
 
-### Primary Documentation
-- **README.md** - Start here
-- **containers/langgraph-agents/ARCHITECTURE.md** - Detailed architecture
-- **docs/N8N_TO_PYTHON_MIGRATION_PLAN.md** - Migration details
-- **docs/reports/PRODUCTION_READINESS_REPORT.md** - Security audit
-- **docs/INDEX.md** - Documentation index
+### **Essential Reading** (Start Here)
+1. **[README.md](README.md)** - Project overview, features, and quick start
+2. **[DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md)** - Step-by-step deployment
+3. **[LANGGRAPH_FLOW_DIAGRAM.md](docs/LANGGRAPH_FLOW_DIAGRAM.md)** - Visual agent architecture
+4. **[TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** - Common issues and solutions
 
-### API Documentation
-- Swagger UI: `http://localhost:8080/docs`
-- ReDoc: `http://localhost:8080/redoc`
-- Scheduler: `http://localhost:8080/scheduler/jobs`
+### **AI Agents & Architecture**
+- **[containers/langgraph-agents/ARCHITECTURE.md](containers/langgraph-agents/ARCHITECTURE.md)** - Technical implementation details
+- **[containers/langgraph-agents/PROMPT_GUIDE.md](containers/langgraph-agents/PROMPT_GUIDE.md)** - How to modify agent prompts
+- **[docs/LANGGRAPH_MULTI_AGENT_PLAN.md](docs/LANGGRAPH_MULTI_AGENT_PLAN.md)** - Multi-agent system design
+- **[docs/N8N_TO_PYTHON_MIGRATION_PLAN.md](docs/N8N_TO_PYTHON_MIGRATION_PLAN.md)** - Migration from n8n to Python
 
-### External Resources
-- [LangGraph Docs](https://langchain-ai.github.io/langgraph/)
-- [FastAPI Docs](https://fastapi.tiangolo.com/)
-- [Pydantic Docs](https://docs.pydantic.dev/)
-- [Qdrant Docs](https://qdrant.tech/documentation/)
+### **API & Integration**
+- **[docs/API_DOCUMENTATION.md](docs/API_DOCUMENTATION.md)** - REST API reference
+- **Swagger UI**: http://localhost:8080/docs (interactive API docs)
+- **ReDoc**: http://localhost:8080/redoc (API documentation)
+- **Scheduler**: http://localhost:8080/scheduler/jobs (scheduled jobs status)
+- **[openwebui/README.md](openwebui/README.md)** - OpenWebUI integration guide
+- **[openwebui/QUICK_START.md](openwebui/QUICK_START.md)** - Fast OpenWebUI setup
+- **[openwebui/adapter/README.md](openwebui/adapter/README.md)** - Adapter service details
+- **[docs/INTEGRATION_FAQ.md](docs/INTEGRATION_FAQ.md)** - Common integration questions
+
+### **Data & Storage**
+- **[migrations/README.md](migrations/README.md)** - PostgreSQL schema and migrations (see README for full schema)
+- **[scripts/qdrant/README.md](scripts/qdrant/README.md)** - Qdrant vector database setup
+- **[containers/mcp-server/README.md](containers/mcp-server/README.md)** - MCP server (12 database tools)
+- **[scripts/vault-watcher/README.md](scripts/vault-watcher/README.md)** - Obsidian vault file monitoring
+
+### **System Architecture**
+- **[unraid-templates/CONTAINER_ARCHITECTURE.md](unraid-templates/CONTAINER_ARCHITECTURE.md)** - Docker container architecture
+- **[unraid-templates/README.md](unraid-templates/README.md)** - unRAID container templates
+- **[docs/review/COMPLETE_STRUCTURE.md](docs/review/COMPLETE_STRUCTURE.md)** - Complete system structure
+
+### **Reports & Security**
+- **[docs/reports/PRODUCTION_READINESS_REPORT.md](docs/reports/PRODUCTION_READINESS_REPORT.md)** - ⭐ Security audit (all issues resolved)
+- **[docs/review/SECURITY_AUDIT_FINDINGS.md](docs/review/SECURITY_AUDIT_FINDINGS.md)** - Detailed security findings
+- **[docs/reports/CODE_REVIEW_REPORT.md](docs/reports/CODE_REVIEW_REPORT.md)** - Comprehensive code analysis
+- **[docs/reports/DUPLICATION_ANALYSIS.md](docs/reports/DUPLICATION_ANALYSIS.md)** - Code quality assessment
+- **[docs/review/CODE_REVIEW_SUMMARY.md](docs/review/CODE_REVIEW_SUMMARY.md)** - Review findings summary
+
+### **Development & Testing**
+- **[tests/README.md](tests/README.md)** - Test scripts and usage
+- **[docs/OPENMEMORY_COMPARISON.md](docs/OPENMEMORY_COMPARISON.md)** - Memory system analysis
+- **[docs/review/ANSWERS_TO_YOUR_QUESTIONS.md](docs/review/ANSWERS_TO_YOUR_QUESTIONS.md)** - Technical Q&A
+
+### **Archived Documentation**
+Historical/completed work in `docs/archive/`:
+- Phase implementation plans (PHASE_1-4)
+- Gaps analysis documents
+- Food feature documentation
+- Pydantic AI implementation docs
+- n8n security guides
+- Custom WebUI plans
+
+Implementation summaries in `containers/langgraph-agents/archive/`:
+- Tool integration summaries
+- Event tools plans
+- Refactoring documentation
+
+### **External Resources**
+- [LangGraph Docs](https://langchain-ai.github.io/langgraph/) - Multi-agent framework
+- [FastAPI Docs](https://fastapi.tianglo.com/) - Web framework
+- [Pydantic Docs](https://docs.pydantic.dev/) - Data validation
+- [Qdrant Docs](https://qdrant.tech/documentation/) - Vector database
 
 ---
 

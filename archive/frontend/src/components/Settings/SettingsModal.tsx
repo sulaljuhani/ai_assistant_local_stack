@@ -7,38 +7,41 @@ import { loadApiSettings, saveApiSettings, type ApiSettings } from '../../utils/
 import { useToast } from '../../contexts/ToastContext';
 
 interface SettingsModalProps {
-  isOpen: boolean;
   onClose: () => void;
 }
 
 type TabType = 'general' | 'api';
 
-export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
+export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   const { clearAllConversations } = useChat();
   const { showSuccess, showError } = useToast();
   const [activeTab, setActiveTab] = useState<TabType>('general');
   const [backendStatus, setBackendStatus] = useState<'loading' | 'online' | 'offline'>('loading');
-  const [apiSettings, setApiSettings] = useState<ApiSettings>(loadApiSettings());
+  const [apiSettings, setApiSettings] = useState<ApiSettings>(() => loadApiSettings());
 
-  // Check backend health when modal opens
+  // Check backend health on mount
   useEffect(() => {
-    if (isOpen) {
-      setBackendStatus('loading');
-      chatApi.healthCheck()
-        .then(() => setBackendStatus('online'))
-        .catch(() => setBackendStatus('offline'));
-    }
-  }, [isOpen]);
+    let isCancelled = false;
 
-  // Load settings when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      setApiSettings(loadApiSettings());
-      setActiveTab('general'); // Reset to general tab
-    }
-  }, [isOpen]);
+    const checkHealth = async () => {
+      try {
+        await chatApi.healthCheck();
+        if (!isCancelled) {
+          setBackendStatus('online');
+        }
+      } catch {
+        if (!isCancelled) {
+          setBackendStatus('offline');
+        }
+      }
+    };
 
-  if (!isOpen) return null;
+    checkHealth();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
 
   const handleClearAll = () => {
     if (confirm('Are you sure you want to delete all conversations? This cannot be undone.')) {
@@ -140,7 +143,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 </label>
                 <input
                   type="text"
-                  value={import.meta.env.VITE_BACKEND_URL || 'http://localhost:8080'}
+                  value={import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}
                   disabled
                   className="w-full px-3 py-2 bg-input-bg border border-input-border rounded-lg
                            text-text-secondary text-sm"

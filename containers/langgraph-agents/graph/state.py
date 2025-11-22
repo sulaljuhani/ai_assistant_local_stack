@@ -36,7 +36,7 @@ class MultiAgentState(TypedDict):
     session_id: str
 
     # Domain-specific contexts (consolidated - each agent updates its own key)
-    agent_contexts: dict  # {"food": {...}, "task": {...}, "event": {...}, "memory": {...}}
+    agent_contexts: dict  # {"food": {...}, "task": {...}, "event": {...}, "reminder": {...}, "memory": {...}}
 
     # Handoff metadata
     handoff_reason: Optional[str]

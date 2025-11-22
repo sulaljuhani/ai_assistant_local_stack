@@ -19,7 +19,7 @@ logger = get_logger(__name__)
 class RoutingDecision(BaseModel):
     """Structured routing decision."""
 
-    agent: Literal["food_agent", "task_agent", "event_agent", "memory_agent"]
+    agent: Literal["food_agent", "task_agent", "event_agent", "reminder_agent"]
     confidence: float = Field(ge=0.0, le=1.0)
     reason: str
 
@@ -33,7 +33,7 @@ FOOD_KEYWORDS = [
 
 TASK_KEYWORDS = [
     "task", "todo", "do", "complete", "finish", "deadline", "priority",
-    "remind", "reminder", "project", "work on", "need to", "have to",
+    "project", "work on", "need to", "have to",
     "create a task", "add task", "task list"
 ]
 
@@ -41,6 +41,11 @@ EVENT_KEYWORDS = [
     "event", "calendar", "schedule", "meeting", "appointment", "plan",
     "time", "date", "today", "tomorrow", "week", "available", "busy",
     "book", "reserve", "add to calendar"
+]
+
+REMINDER_KEYWORDS = [
+    "remind", "reminder", "alert me", "notify", "ping me", "follow up",
+    "remind me", "set a reminder", "snooze", "nudge me", "remind at", "remind on"
 ]
 
 MEMORY_KEYWORDS = [
@@ -65,13 +70,17 @@ def simple_keyword_routing(message: str) -> str | None:
     food_score = sum(1 for kw in FOOD_KEYWORDS if kw in message_lower)
     task_score = sum(1 for kw in TASK_KEYWORDS if kw in message_lower)
     event_score = sum(1 for kw in EVENT_KEYWORDS if kw in message_lower)
+    reminder_score = sum(1 for kw in REMINDER_KEYWORDS if kw in message_lower)
     memory_score = sum(1 for kw in MEMORY_KEYWORDS if kw in message_lower)
+
+    # Route memory queries to task_agent (it has memory tools)
+    task_score += memory_score
 
     scores = {
         "food_agent": food_score,
         "task_agent": task_score,
         "event_agent": event_score,
-        "memory_agent": memory_score,
+        "reminder_agent": reminder_score,
     }
 
     # Get highest scoring agent
@@ -104,15 +113,17 @@ async def llm_routing(message: str, context: dict) -> RoutingDecision:
 
 Available agents:
 - food_agent: Handles food logging, meal suggestions, dietary patterns, nutrition
-- task_agent: Handles task creation, planning, productivity, todos, reminders
+- task_agent: Handles task creation, planning, productivity, todos, notes, and memory/knowledge storage
+- reminder_agent: Handles reminders, nudges, follow-ups, and time-based alerts
 - event_agent: Handles calendar events, scheduling, meetings, time management
-- memory_agent: Handles notes, knowledge storage, information retrieval
 
 Analyze the user's message and determine which agent is most appropriate.
 Consider:
 1. The primary intent of the message
 2. Which agent has the most relevant expertise
 3. Context from previous conversation if available
+
+Note: Memory and note-related queries should go to task_agent as it has memory tools.
 
 Be decisive - pick the single most appropriate agent."""),
         ("user", """Message: {message}
@@ -146,9 +157,11 @@ Which agent should handle this request? Provide your reasoning.""")
 
 Available agents:
 - food_agent: Food logging, dietary preferences, meal suggestions
-- task_agent: Task management, todos, reminders
+- task_agent: Task management, todos, notes, and memory storage
+- reminder_agent: Reminders, alerts, follow-ups, nudges
 - event_agent: Calendar events, meetings, scheduling
-- memory_agent: Storing and searching memories/notes
+
+Note: Memory and note queries go to task_agent.
 
 Respond with ONLY a valid JSON object in this exact format:
 {{"agent": "agent_name", "confidence": 0.9, "reason": "brief explanation"}}

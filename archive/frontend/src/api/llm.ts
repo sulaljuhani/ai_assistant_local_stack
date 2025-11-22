@@ -146,13 +146,13 @@ export const testConnection = async (): Promise<{
         timeout: 5000,
       });
 
-      const models = response.data.models || [];
-      const hasModel = models.some((m: any) => m.name === settings.ollamaModel);
+      const models = (response.data?.models as Array<{ name: string }> | undefined) ?? [];
+      const hasModel = models.some((model) => model.name === settings.ollamaModel);
 
       if (!hasModel) {
         return {
           success: false,
-          message: `Model "${settings.ollamaModel}" not found. Available models: ${models.map((m: any) => m.name).join(', ')}`,
+          message: `Model "${settings.ollamaModel}" not found. Available models: ${models.map((model) => model.name).join(', ')}`,
         };
       }
 
@@ -179,24 +179,33 @@ export const testConnection = async (): Promise<{
       success: false,
       message: 'Unknown provider',
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Connection test failed:', error);
 
-    if (error.code === 'ECONNREFUSED') {
-      return {
-        success: false,
-        message: `Cannot connect to ${settings.provider}. Make sure the service is running.`,
-      };
-    } else if (error.response?.status === 401) {
-      return {
-        success: false,
-        message: 'Authentication failed. Check your API key.',
-      };
-    } else {
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNREFUSED') {
+        return {
+          success: false,
+          message: `Cannot connect to ${settings.provider}. Make sure the service is running.`,
+        };
+      }
+
+      if (error.response?.status === 401) {
+        return {
+          success: false,
+          message: 'Authentication failed. Check your API key.',
+        };
+      }
+
       return {
         success: false,
         message: error.message || 'Connection failed',
       };
     }
+
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Connection failed',
+    };
   }
 };

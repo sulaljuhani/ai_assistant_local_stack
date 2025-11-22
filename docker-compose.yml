@@ -88,6 +88,29 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
 
+  # ===========================================================================
+  # Open-WebUI Adapter (OpenAI-style shim to LangGraph)
+  # ===========================================================================
+  openwebui-adapter:
+    build:
+      context: ./openwebui/adapter
+      dockerfile: Dockerfile
+    container_name: openwebui-adapter
+    restart: unless-stopped
+    environment:
+      LANGGRAPH_CHAT_URL: ${LANGGRAPH_CHAT_URL:-http://langgraph-agents:8000/chat}
+      LANGGRAPH_API_KEY: ${LANGGRAPH_API_KEY:-}
+      LANGGRAPH_USER_ID: ${DEFAULT_USER_ID:-00000000-0000-0000-0000-000000000001}
+      OPENWEBUI_ADAPTER_API_KEY: ${OPENWEBUI_ADAPTER_API_KEY:-change_me}
+      LANGGRAPH_REQUEST_TIMEOUT_SECONDS: ${LANGGRAPH_REQUEST_TIMEOUT_SECONDS:-90}
+      PORT: 8080
+    ports:
+      - "${OPENWEBUI_ADAPTER_PORT:-8090}:8080"
+    networks:
+      - ai-stack-network
+    depends_on:
+      - langgraph-agents
+
 networks:
   ai-stack-network:
     external: true

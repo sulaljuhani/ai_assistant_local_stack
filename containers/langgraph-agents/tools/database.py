@@ -2,13 +2,90 @@
 Direct database query tools for structured data access.
 """
 
+import json
+import re
+import httpx
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
+from dateutil import parser as date_parser
 from langchain_core.tools import tool
 from utils.db import get_db_pool
 from utils.logging import get_logger
+from config import settings
 
 logger = get_logger(__name__)
+
+
+def serialize_tool_result(result: Any) -> str:
+    """
+    Serialize tool results to JSON string for LLM compatibility.
+
+    Some LLM providers (e.g., DeepSeek) require tool results to be strings,
+    not complex data structures. This function ensures compatibility.
+
+    Args:
+        result: Tool result (can be list, dict, or any JSON-serializable type)
+
+    Returns:
+        JSON string representation
+    """
+    if isinstance(result, str):
+        return result
+    try:
+        return json.dumps(result, default=str, ensure_ascii=False)
+    except Exception as e:
+        logger.warning(f"Failed to serialize result: {e}")
+        return str(result)
+
+
+async def get_embedding(text: str) -> List[float]:
+    """
+    Get embedding vector for text using Ollama.
+
+    Args:
+        text: Text to embed
+
+    Returns:
+        Embedding vector (768 dimensions for nomic-embed-text)
+    """
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                f"{settings.ollama_embed_url}/api/embeddings",
+                json={
+                    "model": settings.ollama_embed_model,
+                    "prompt": text
+                }
+            )
+            result = response.json()
+            return result["embedding"]
+    except Exception as e:
+        logger.error(f"Error getting embedding: {e}")
+        return []
+
+
+def cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
+    """
+    Calculate cosine similarity between two vectors.
+
+    Args:
+        vec1: First vector
+        vec2: Second vector
+
+    Returns:
+        Similarity score (0-1, where 1 is identical)
+    """
+    if not vec1 or not vec2 or len(vec1) != len(vec2):
+        return 0.0
+
+    dot_product = sum(a * b for a, b in zip(vec1, vec2))
+    magnitude1 = sum(a * a for a in vec1) ** 0.5
+    magnitude2 = sum(b * b for b in vec2) ** 0.5
+
+    if magnitude1 == 0 or magnitude2 == 0:
+        return 0.0
+
+    return dot_product / (magnitude1 * magnitude2)
 
 
 # ============================================================================
@@ -52,6 +129,51 @@ def validate_priority(priority: Optional[str]) -> None:
     valid_priorities = ['low', 'medium', 'high']
     if priority is not None and priority not in valid_priorities:
         raise ValueError(f"priority must be one of: {', '.join(valid_priorities)}")
+
+
+def normalize_due_date(due_date: Optional[str]) -> Optional[datetime]:
+    """
+    Convert a natural language due date into a datetime object.
+
+    Handles simple phrases (today, tomorrow, in X days, next week) and
+    falls back to dateutil.parser for free-form inputs. Returns None if
+    parsing fails.
+    """
+    if not due_date:
+        return None
+
+    text = due_date.strip()
+    if not text:
+        return None
+
+    lower = text.lower()
+    now = datetime.utcnow()
+
+    def end_of_day(dt: datetime) -> datetime:
+        return dt.replace(hour=17, minute=0, second=0, microsecond=0)
+
+    try:
+        # Common quick phrases
+        if lower in {"today", "by today", "end of day", "eod", "tonight"}:
+            return end_of_day(now)
+
+        if lower in {"tomorrow", "tmr", "tmrw"}:
+            return end_of_day(now + timedelta(days=1))
+
+        in_days_match = re.match(r"in\s+(\d+)\s+day[s]?", lower)
+        if in_days_match:
+            days = int(in_days_match.group(1))
+            return end_of_day(now + timedelta(days=days))
+
+        if lower == "next week":
+            return end_of_day(now + timedelta(days=7))
+
+        # Fall back to dateutil parsing
+        parsed = date_parser.parse(text, fuzzy=True, default=now)
+        return parsed
+    except Exception as e:
+        logger.warning(f"Could not parse due_date '{due_date}': {e}")
+        return None
 
 
 # ============================================================================
@@ -403,7 +525,7 @@ async def search_tasks(
     status: Optional[str] = None,
     priority: Optional[str] = None,
     limit: int = 20
-) -> List[Dict[str, Any]]:
+) -> str:
     """
     Search tasks with filters.
 
@@ -456,7 +578,7 @@ async def search_tasks(
             rows = await conn.fetch(query, *params)
             results = [dict(row) for row in rows]
             logger.info(f"Found {len(results)} tasks")
-            return results
+            return serialize_tool_result(results)
     except ValueError as e:
         logger.error(f"Validation error in search_tasks: {e}")
         raise
@@ -472,19 +594,19 @@ async def create_task(
     description: Optional[str] = None,
     priority: str = "medium",
     due_date: Optional[str] = None
-) -> Dict[str, Any]:
+) -> str:
     """
-    Create a new task.
+    Create a new task (checks for duplicates first).
 
     Args:
         user_id: User identifier (UUID string or 'anythingllm')
         title: Task title
         description: Task description
         priority: Priority level (low, medium, high, urgent) or integer (0-4)
-        due_date: Due date (ISO format)
+        due_date: Due date (natural language like "tomorrow" or ISO string)
 
     Returns:
-        Created task
+        JSON string with created task or duplicate notification
 
     Raises:
         ValueError: If input parameters are invalid
@@ -492,6 +614,11 @@ async def create_task(
     # Normalize user_id (convert 'anythingllm' to default UUID)
     if user_id == 'anythingllm' or not user_id:
         user_id = '00000000-0000-0000-0000-000000000001'
+
+    # Parse natural-language due dates
+    normalized_due_date = normalize_due_date(due_date)
+    if due_date and not normalized_due_date:
+        logger.info(f"Unable to parse due date '{due_date}', leaving unset")
 
     # Convert priority string to integer if needed
     priority_map = {
@@ -523,21 +650,96 @@ async def create_task(
 
     pool = await get_db_pool()
 
-    query = """
-        INSERT INTO tasks (user_id, title, description, priority, due_date, status)
-        VALUES ($1, $2, $3, $4, $5, 'todo')
-        RETURNING id, user_id, title, description, status, priority, due_date, created_at
-    """
-
     try:
         async with pool.acquire() as conn:
+            # Step 1: Check for exact title match (fast path)
+            exact_match_check = """
+                SELECT id, title, description, status, priority, due_date, created_at
+                FROM tasks
+                WHERE user_id = $1
+                  AND LOWER(title) = LOWER($2)
+                  AND status NOT IN ('completed', 'deleted')
+                LIMIT 1
+            """
+
+            exact_match = await conn.fetchrow(exact_match_check, user_id, title)
+
+            if exact_match:
+                logger.info(f"Exact duplicate task found: {title}")
+                result = {
+                    "duplicate": True,
+                    "similarity": 1.0,
+                    "match_type": "exact",
+                    "message": f"A task with the title '{title}' already exists",
+                    "existing_task": dict(exact_match)
+                }
+                return serialize_tool_result(result)
+
+            # Step 2: Check for semantic similarity using embeddings
+            # Get recent non-completed tasks for similarity comparison
+            recent_tasks_query = """
+                SELECT id, title, description, status, priority, due_date, created_at
+                FROM tasks
+                WHERE user_id = $1
+                  AND status NOT IN ('completed', 'deleted')
+                  AND created_at > NOW() - INTERVAL '30 days'
+                ORDER BY created_at DESC
+                LIMIT 20
+            """
+
+            recent_tasks = await conn.fetch(recent_tasks_query, user_id)
+            logger.info(f"Checking similarity against {len(recent_tasks)} recent tasks")
+
+            if recent_tasks:
+                # Get embedding for new task
+                new_task_text = f"{title}. {description or ''}"
+                logger.info(f"Getting embedding for new task: {new_task_text[:50]}...")
+                new_embedding = await get_embedding(new_task_text)
+                logger.info(f"New task embedding: {len(new_embedding) if new_embedding else 0} dimensions")
+
+                if new_embedding:
+                    # Compare with existing tasks
+                    for task in recent_tasks:
+                        existing_text = f"{task['title']}. {task['description'] or ''}"
+                        existing_embedding = await get_embedding(existing_text)
+
+                        if existing_embedding:
+                            similarity = cosine_similarity(new_embedding, existing_embedding)
+                            logger.info(f"Comparing with '{task['title']}': similarity = {similarity:.3f}")
+
+                            # Consider it a duplicate if similarity > 0.80 (80%)
+                            if similarity > 0.80:
+                                logger.info(f"DUPLICATE DETECTED: {task['title']} (similarity: {similarity:.2f})")
+                                result = {
+                                    "duplicate": True,
+                                    "similarity": round(similarity, 2),
+                                    "match_type": "similar",
+                                    "message": f"A very similar task already exists: '{task['title']}' (similarity: {int(similarity*100)}%)",
+                                    "existing_task": dict(task)
+                                }
+                                return serialize_tool_result(result)
+                else:
+                    logger.warning("Failed to get embedding for new task")
+
+            # No duplicate found, create the task
+            insert_query = """
+                INSERT INTO tasks (user_id, title, description, priority, due_date, status)
+                VALUES ($1, $2, $3, $4, $5, 'todo')
+                RETURNING id, user_id, title, description, status, priority, due_date, created_at
+            """
+
             row = await conn.fetchrow(
-                query,
-                user_id, title, description, priority_int, due_date
+                insert_query,
+                user_id, title, description, priority_int, normalized_due_date
             )
-            result = dict(row)
+            result = {
+                "duplicate": False,
+                "message": "Task created successfully",
+                "task": dict(row)
+            }
             logger.info(f"Created task: {title} with priority {priority_int}")
-            return result
+            return serialize_tool_result(result)
+
     except ValueError as e:
         logger.error(f"Validation error in create_task: {e}")
         raise
@@ -548,7 +750,7 @@ async def create_task(
 
 @tool
 async def update_task(
-    task_id: int,
+    task_id: str,
     user_id: str,
     status: Optional[str] = None,
     priority: Optional[str] = None,
@@ -558,11 +760,11 @@ async def update_task(
     Update an existing task.
 
     Args:
-        task_id: Task ID
+        task_id: Task ID (UUID string)
         user_id: User identifier
         status: New status (pending, in_progress, completed, etc.)
         priority: New priority (low, medium, high)
-        due_date: New due date (ISO format)
+        due_date: New due date (natural language or ISO string)
 
     Returns:
         Updated task
@@ -571,11 +773,17 @@ async def update_task(
         ValueError: If input parameters are invalid
     """
     # Validate inputs
+    if not task_id:
+        raise ValueError("task_id is required")
     validate_task_status(status)
     validate_priority(priority)
 
     if status is None and priority is None and due_date is None:
         raise ValueError("At least one of status, priority, or due_date must be provided")
+
+    normalized_due_date = normalize_due_date(due_date) if due_date is not None else None
+    if due_date and normalized_due_date is None:
+        logger.info(f"Unable to parse due date '{due_date}', leaving unchanged")
 
     pool = await get_db_pool()
 
@@ -595,10 +803,13 @@ async def update_task(
         params.append(priority)
         updates.append(f"priority = ${param_count}")
 
-    if due_date is not None:
+    if due_date is not None and normalized_due_date is not None:
         param_count += 1
-        params.append(due_date)
+        params.append(normalized_due_date)
         updates.append(f"due_date = ${param_count}")
+
+    if not updates:
+        raise ValueError("No valid updates provided (check status/priority/due_date values)")
 
     query = f"""
         UPDATE tasks
@@ -766,9 +977,9 @@ async def create_event(
     end_time: str,
     description: Optional[str] = None,
     location: Optional[str] = None
-) -> Dict[str, Any]:
+) -> str:
     """
-    Create a calendar event.
+    Create a calendar event (checks for duplicates first).
 
     Args:
         user_id: User identifier (UUID string or 'anythingllm')
@@ -779,7 +990,7 @@ async def create_event(
         location: Event location
 
     Returns:
-        Created event
+        JSON string with created event or duplicate notification
 
     Raises:
         ValueError: If input parameters are invalid
@@ -797,21 +1008,96 @@ async def create_event(
 
     pool = await get_db_pool()
 
-    query = """
-        INSERT INTO events (user_id, title, description, start_time, end_time, location)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        RETURNING id, user_id, title, description, start_time, end_time, location, created_at
-    """
-
     try:
         async with pool.acquire() as conn:
+            # Step 1: Check for exact title match with overlapping time (fast path)
+            exact_match_check = """
+                SELECT id, title, description, start_time, end_time, location, created_at
+                FROM events
+                WHERE user_id = $1
+                  AND LOWER(title) = LOWER($2)
+                  AND (
+                    -- Check if times overlap
+                    (start_time <= $3 AND end_time >= $3) OR  -- New start within existing
+                    (start_time <= $4 AND end_time >= $4) OR  -- New end within existing
+                    (start_time >= $3 AND end_time <= $4)     -- Existing within new
+                  )
+                LIMIT 1
+            """
+
+            exact_match = await conn.fetchrow(exact_match_check, user_id, title, start_time, end_time)
+
+            if exact_match:
+                logger.info(f"Exact duplicate event found: {title}")
+                result = {
+                    "duplicate": True,
+                    "similarity": 1.0,
+                    "match_type": "exact",
+                    "message": f"An event with the title '{title}' already exists at this time",
+                    "existing_event": dict(exact_match)
+                }
+                return serialize_tool_result(result)
+
+            # Step 2: Check for semantically similar events around the same time
+            # Get events within ±7 days of the requested time
+            similar_events_query = """
+                SELECT id, title, description, start_time, end_time, location, created_at
+                FROM events
+                WHERE user_id = $1
+                  AND start_time BETWEEN $2::timestamp - INTERVAL '7 days'
+                                     AND $2::timestamp + INTERVAL '7 days'
+                ORDER BY start_time ASC
+                LIMIT 20
+            """
+
+            nearby_events = await conn.fetch(similar_events_query, user_id, start_time)
+
+            if nearby_events:
+                # Get embedding for new event
+                new_event_text = f"{title}. {description or ''}. Location: {location or 'none'}"
+                new_embedding = await get_embedding(new_event_text)
+
+                if new_embedding:
+                    # Compare with existing events
+                    for event in nearby_events:
+                        existing_text = f"{event['title']}. {event['description'] or ''}. Location: {event['location'] or 'none'}"
+                        existing_embedding = await get_embedding(existing_text)
+
+                        if existing_embedding:
+                            similarity = cosine_similarity(new_embedding, existing_embedding)
+                            logger.info(f"Comparing with '{event['title']}': similarity = {similarity:.3f}")
+
+                            # Consider it a duplicate if similarity > 0.80 (80%)
+                            if similarity > 0.80:
+                                logger.info(f"DUPLICATE EVENT DETECTED: {event['title']} (similarity: {similarity:.2f})")
+                                result = {
+                                    "duplicate": True,
+                                    "similarity": round(similarity, 2),
+                                    "match_type": "similar",
+                                    "message": f"A very similar event already exists: '{event['title']}' on {event['start_time'].strftime('%Y-%m-%d %H:%M')} (similarity: {int(similarity*100)}%)",
+                                    "existing_event": dict(event)
+                                }
+                                return serialize_tool_result(result)
+
+            # No duplicate found, create the event
+            insert_query = """
+                INSERT INTO events (user_id, title, description, start_time, end_time, location)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                RETURNING id, user_id, title, description, start_time, end_time, location, created_at
+            """
+
             row = await conn.fetchrow(
-                query,
+                insert_query,
                 user_id, title, description, start_time, end_time, location
             )
-            result = dict(row)
+            result = {
+                "duplicate": False,
+                "message": "Event created successfully",
+                "event": dict(row)
+            }
             logger.info(f"Created event: {title}")
-            return result
+            return serialize_tool_result(result)
+
     except ValueError as e:
         logger.error(f"Validation error in create_event: {e}")
         raise

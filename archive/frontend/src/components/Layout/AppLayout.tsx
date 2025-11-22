@@ -36,10 +36,11 @@ export const AppLayout: React.FC = () => {
       </div>
 
       {/* Settings Modal */}
-      <SettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-      />
+      {isSettingsOpen && (
+        <SettingsModal
+          onClose={() => setIsSettingsOpen(false)}
+        />
+      )}
     </div>
   );
 };

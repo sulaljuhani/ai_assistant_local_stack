@@ -8,7 +8,7 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from .state import MultiAgentState, prune_messages, should_prune_state
 from .routing import route_to_agent, should_route_to_new_agent
 from .checkpointer import RedisCheckpointSaver
-from agents import food_agent_node, task_agent_node, event_agent_node
+from agents import food_agent_node, task_agent_node, event_agent_node, reminder_agent_node
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -88,7 +88,7 @@ def should_continue(state: MultiAgentState) -> Literal["route", "end"]:
     return "end"
 
 
-def route_to_agent_node(state: MultiAgentState) -> Literal["food_agent", "task_agent", "event_agent"]:
+def route_to_agent_node(state: MultiAgentState) -> Literal["food_agent", "task_agent", "event_agent", "reminder_agent"]:
     """
     Conditional edge function to route to specific agent.
 
@@ -109,9 +109,9 @@ def create_workflow(checkpointer: BaseCheckpointSaver = None) -> StateGraph:
 
     Workflow structure (enhanced from LangGraph tutorial):
 
-    START → routing (classifier+router) → [food_agent | task_agent | event_agent]
-                ↑                                        ↓
-                └────────────────── should_continue ────┘
+    START → routing (classifier+router) → [food_agent | task_agent | event_agent | reminder_agent]
+                ↑                                                   ↓
+                └────────────────────────── should_continue ───────┘
                                            ↓
                                          END
 
@@ -122,7 +122,7 @@ def create_workflow(checkpointer: BaseCheckpointSaver = None) -> StateGraph:
     Nodes:
     1. START (implicit entry point)
     2. routing - Combined classifier + router (more efficient than 2 nodes)
-    3. food_agent, task_agent, event_agent - Specialized agents
+    3. food_agent, task_agent, event_agent, reminder_agent - Specialized agents
     4. should_continue - Decision function (route for handoff, or end)
     5. END (terminal state)
 
@@ -142,6 +142,7 @@ def create_workflow(checkpointer: BaseCheckpointSaver = None) -> StateGraph:
     workflow.add_node("food_agent", food_agent_node)     # Specialist agent
     workflow.add_node("task_agent", task_agent_node)     # Specialist agent
     workflow.add_node("event_agent", event_agent_node)   # Specialist agent
+    workflow.add_node("reminder_agent", reminder_agent_node)   # Specialist agent
 
     # Set entry point (like tutorial's START → first_node)
     workflow.set_entry_point("routing")
@@ -154,11 +155,12 @@ def create_workflow(checkpointer: BaseCheckpointSaver = None) -> StateGraph:
             "food_agent": "food_agent",
             "task_agent": "task_agent",
             "event_agent": "event_agent",
+            "reminder_agent": "reminder_agent",
         }
     )
 
     # Add edges from each agent back to routing or end
-    for agent in ["food_agent", "task_agent", "event_agent"]:
+    for agent in ["food_agent", "task_agent", "event_agent", "reminder_agent"]:
         workflow.add_conditional_edges(
             agent,
             should_continue,

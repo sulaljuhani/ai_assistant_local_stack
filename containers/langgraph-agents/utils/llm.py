@@ -39,6 +39,8 @@ def get_llm(
             model=model or settings.openai_model,
             temperature=temperature,
             streaming=streaming,
+            # Ensure tool responses are properly formatted for strict OpenAI API compatibility (e.g., DeepSeek)
+            model_kwargs={"tool_choice": "auto"},
         )
     else:
         raise ValueError(f"Unknown LLM provider: {settings.llm_provider}")

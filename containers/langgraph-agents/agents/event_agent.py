@@ -148,7 +148,10 @@ async def event_agent_node(state: MultiAgentState) -> Dict[str, Any]:
         messages_with_context = [context_message] + list(state["messages"])
 
         # Invoke agent (simple like tutorial)
-        result = await agent.ainvoke({"messages": messages_with_context})
+        result = await agent.ainvoke(
+            {"messages": messages_with_context},
+            config={"recursion_limit": 60},
+        )
 
         # Extract response
         last_message = result["messages"][-1]

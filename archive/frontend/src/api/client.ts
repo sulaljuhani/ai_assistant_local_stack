@@ -2,7 +2,7 @@ import axios from 'axios';
 import { loadApiSettings } from '../utils/storage';
 
 // Environment variable or fallback
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8080';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
 
 // Create axios instance for backend API
 export const apiClient = axios.create({

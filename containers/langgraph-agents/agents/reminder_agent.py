@@ -1,5 +1,5 @@
 """
-Food Agent - Specialized in food logging, recommendations, and dietary patterns.
+Reminder Agent - Specialized in scheduling and managing reminders.
 
 Refactored following LangGraph tutorial best practices:
 - Module-level agent caching (created once, reused forever)
@@ -12,13 +12,13 @@ from datetime import datetime
 from langchain_core.messages import AIMessage, HumanMessage
 from graph.state import MultiAgentState
 from tools import (
-    search_food_log,
-    log_food_entry,
-    update_food_entry,
-    get_food_by_rating,
-    analyze_food_patterns,
-    vector_search_foods,
-    get_food_recommendations,
+    search_reminders,
+    create_reminder,
+    update_reminder,
+    complete_reminder,
+    get_reminders_today,
+    get_reminders_due_soon,
+    unified_search,
 )
 from utils.logging import get_logger
 from .base import (
@@ -36,115 +36,96 @@ logger = get_logger(__name__)
 # ============================================================================
 
 # Load system prompt once
-FOOD_AGENT_PROMPT = load_system_prompt("food_agent")
+REMINDER_AGENT_PROMPT = load_system_prompt("reminder_agent")
 
 # Define tools once
-FOOD_TOOLS = [
-    search_food_log,
-    log_food_entry,
-    update_food_entry,
-    get_food_by_rating,
-    analyze_food_patterns,
-    vector_search_foods,
-    get_food_recommendations,
+REMINDER_TOOLS = [
+    search_reminders,
+    create_reminder,
+    update_reminder,
+    complete_reminder,
+    get_reminders_today,
+    get_reminders_due_soon,
+    unified_search,
 ]
 
 # Create ReAct agent once (following tutorial pattern)
-_food_react_agent = None
+_reminder_react_agent = None
 
 
-def _get_food_agent():
+def _get_reminder_agent():
     """
-    Get or create the food agent.
+    Get or create the reminder agent.
 
     Following LangGraph tutorial pattern: agent created once, reused forever.
 
     Returns:
         Cached ReAct agent
     """
-    global _food_react_agent
-    if _food_react_agent is None:
-        _food_react_agent = create_cached_react_agent(
-            agent_name="food_agent",
-            tools=FOOD_TOOLS,
+    global _reminder_react_agent
+    if _reminder_react_agent is None:
+        _reminder_react_agent = create_cached_react_agent(
+            agent_name="reminder_agent",
+            tools=REMINDER_TOOLS,
             temperature=0.7,
         )
-    return _food_react_agent
+    return _reminder_react_agent
 
 
 # ============================================================================
 # AGENT NODE (Simple function following tutorial pattern)
 # ============================================================================
 
-async def food_agent_node(state: MultiAgentState) -> Dict[str, Any]:
+async def reminder_agent_node(state: MultiAgentState) -> Dict[str, Any]:
     """
-    Food Agent node for LangGraph workflow.
+    Reminder Agent node for LangGraph workflow.
 
-    Following LangGraph tutorial pattern:
-    - Simple function taking state, returning state updates
-    - Reuses cached agent (no recreation)
-    - Context injected via messages (not templates)
-
-    Args:
-        state: Current conversation state
-
-    Returns:
-        State updates dict
+    Follows the same pattern as other agents: cached agent, context message,
+    simple invocation, and optional handoff.
     """
-    logger.info("Food Agent activated")
+    logger.info("Reminder Agent activated")
 
     try:
-        # Get cached agent (created once, reused forever)
-        agent = _get_food_agent()
+        agent = _get_reminder_agent()
 
-        # Create context message (following tutorial pattern)
-        context_message = create_context_message(state, "food", FOOD_AGENT_PROMPT)
-
-        # Prepend context to messages
+        context_message = create_context_message(state, "reminder", REMINDER_AGENT_PROMPT)
         messages_with_context = [context_message] + list(state["messages"])
 
-        # Invoke agent (simple like tutorial)
         result = await agent.ainvoke(
             {"messages": messages_with_context},
             config={"recursion_limit": 60},
         )
 
-        # Extract response
         last_message = result["messages"][-1]
         response_content = (
             last_message.content if hasattr(last_message, "content") else str(last_message)
         )
 
-        logger.info(f"Food Agent response: {response_content[:100]}...")
+        logger.info(f"Reminder Agent response: {response_content[:100]}...")
 
-        # Detect handoff
         should_handoff, target_agent, handoff_reason = await detect_handoff(
-            state, "food_agent", response_content
+            state, "reminder_agent", response_content
         )
 
-        # Update agent context (consolidated structure)
         agent_contexts = state.get("agent_contexts", {})
-        agent_contexts["food"] = {
+        agent_contexts["reminder"] = {
             "last_interaction": datetime.utcnow().isoformat(),
             "last_topic": response_content[:200],
         }
 
-        # Prepare state updates (following tutorial pattern: return updates dict)
         updates = {
             "messages": result["messages"],
-            "current_agent": "food_agent",
+            "current_agent": "reminder_agent",
             "previous_agent": state.get("current_agent"),
             "agent_contexts": agent_contexts,
             "turn_count": state["turn_count"] + 1,
             "updated_at": datetime.utcnow().isoformat(),
         }
 
-        # Add handoff information if detected
         if should_handoff and target_agent:
             updates["target_agent"] = target_agent
             updates["handoff_reason"] = handoff_reason
 
-            # Add handoff message
             handoff_msg = AIMessage(
                 content=f"I'm transferring you to the {target_agent.replace('_', ' ').title()} who can better assist with that."
             )
@@ -153,10 +134,10 @@ async def food_agent_node(state: MultiAgentState) -> Dict[str, Any]:
         return updates
 
     except Exception as e:
-        logger.error(f"Error in Food Agent: {e}", exc_info=True)
+        logger.error(f"Error in Reminder Agent: {e}", exc_info=True)
         error_msg = AIMessage(content="I encountered an error processing your request.")
         return {
             "messages": [error_msg],
-            "current_agent": "food_agent",
+            "current_agent": "reminder_agent",
             "turn_count": state["turn_count"] + 1,
         }
